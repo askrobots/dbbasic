@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic - Interface Mockups</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            max-width: 1200px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .logo {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 48px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tagline {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 1rem;
+        }
+        
+        .speed-highlight {
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 25px;
+            display: inline-block;
+            font-weight: 600;
+            margin-bottom: 2rem;
+        }
+        
+        .mockups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .mockup-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mockup-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        
+        .mockup-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+        }
+        
+        .mockup-icon {
+            font-size: 36px;
+            margin-bottom: 1rem;
+        }
+        
+        .mockup-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .mockup-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+        
+        .mockup-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .feature-tag {
+            background: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+        }
+        
+        .info-section {
+            background: #f0f9ff;
+            border-left: 4px solid #2196F3;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        
+        .info-title {
+            font-weight: 600;
+            color: #2196F3;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-text {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .vision-section {
+            text-align: center;
+            padding: 2rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 12px;
+            margin-top: 2rem;
+        }
+        
+        .vision-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        
+        .vision-text {
+            color: #666;
+            line-height: 1.8;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .status-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #FFC107;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">DBBasic</div>
+            <div class="tagline">The Future of Software Development</div>
+            <div class="speed-highlight">🚀 402 Million Rows Per Second</div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">💡 Vision</div>
+            <div class="info-text">
+                These mockups show the DBBasic interface that replaces traditional web frameworks.
+                Everything is config-driven, runs at 402M rows/sec, and eliminates 99% of code.
+                Click any mockup to see the future of development.
+            </div>
+        </div>
+
+        <div class="mockups-grid">
+            <a href="mockup_dashboard.html" class="mockup-card">
+                <div class="mockup-icon">📋</div>
+                <div class="mockup-title">Dashboard</div>
+                <div class="mockup-description">
+                    Main interface showing all your tables, real-time stats, and instant data access.
+                    Everything you need in one view.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">Real-time</span>
+                    <span class="feature-tag">Tables</span>
+                    <span class="feature-tag">Stats</span>
+                </div>
+            </a>
+
+            <a href="mockup_config.html" class="mockup-card">
+                <div class="mockup-icon">⚙️</div>
+                <div class="mockup-title">Config Editor</div>
+                <div class="mockup-description">
+                    Where the magic happens. Write config instead of code. 
+                    41 lines replaces 50,000 lines of traditional code.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">YAML</span>
+                    <span class="feature-tag">Live Preview</span>
+                    <span class="feature-tag">Validation</span>
+                </div>
+            </a>
+
+            <a href="mockup_query.html" class="mockup-card">
+                <div class="mockup-icon">🔍</div>
+                <div class="mockup-title">Query Builder</div>
+                <div class="mockup-description">
+                    SQL at the speed of thought. Every query runs at 402M rows/sec.
+                    No optimization needed, ever.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">SQL</span>
+                    <span class="feature-tag">Visual</span>
+                    <span class="feature-tag">Instant</span>
+                </div>
+            </a>
+
+            <a href="mockup_table_form.html" class="mockup-card">
+                <div class="mockup-icon">📊</div>
+                <div class="mockup-title">Table + Form</div>
+                <div class="mockup-description">
+                    The complete CRUD interface. Table for viewing, form for editing.
+                    This replaces 90% of web applications.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">CRUD</span>
+                    <span class="feature-tag">Integrated</span>
+                    <span class="feature-tag">Complete</span>
+                </div>
+            </a>
+
+            <a href="mockup_forms.html" class="mockup-card">
+                <div class="mockup-icon">📝</div>
+                <div class="mockup-title">Form Builder</div>
+                <div class="mockup-description">
+                    Auto-generated forms from your data schema. Validation, relationships,
+                    and actions all configured automatically.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">Auto-Gen</span>
+                    <span class="feature-tag">Validation</span>
+                    <span class="feature-tag">Smart</span>
+                </div>
+            </a>
+
+            <a href="mockup_agents.html" class="mockup-card">
+                <div class="mockup-icon">🤖</div>
+                <div class="mockup-title">Agent Designer</div>
+                <div class="mockup-description">
+                    Create autonomous agents that run your business.
+                    Schedule tasks, automate workflows, integrate AI.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">AI</span>
+                    <span class="feature-tag">Automation</span>
+                    <span class="feature-tag">Workflows</span>
+                </div>
+            </a>
+
+            <a href="mockup_marketplace.html" class="mockup-card">
+                <div class="mockup-icon">🛍️</div>
+                <div class="mockup-title">Template Marketplace</div>
+                <div class="mockup-description">
+                    1,000+ business apps ready to deploy. Every template runs at 402M rows/sec.
+                    Replace any SaaS with a config file.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">Templates</span>
+                    <span class="feature-tag">Apps</span>
+                    <span class="feature-tag">Deploy</span>
+                </div>
+            </a>
+
+            <a href="mockup_view_designer.html" class="mockup-card">
+                <div class="mockup-icon">🎨</div>
+                <div class="mockup-title">View Designer</div>
+                <div class="mockup-description">
+                    Drag-and-drop interface builder. Create any UI without code.
+                    Components automatically bind to your data.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">Drag & Drop</span>
+                    <span class="feature-tag">Components</span>
+                    <span class="feature-tag">Data Binding</span>
+                </div>
+            </a>
+
+            <a href="mockup_realtime.html" class="mockup-card">
+                <div class="mockup-icon">📡</div>
+                <div class="mockup-title">Real-time Monitor</div>
+                <div class="mockup-description">
+                    Watch your data flow in real-time. See everything happening
+                    across your entire system at 402M rows/sec.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">WebSockets</span>
+                    <span class="feature-tag">Live Data</span>
+                    <span class="feature-tag">Metrics</span>
+                </div>
+            </a>
+
+            <a href="mockup_ai_services.html" class="mockup-card">
+                <div class="mockup-icon">🤖</div>
+                <div class="mockup-title">AI Service Builder</div>
+                <div class="mockup-description">
+                    Describe what you need in plain English. AI generates the service.
+                    No code required. Services deploy instantly.
+                </div>
+                <div class="mockup-features">
+                    <span class="feature-tag">AI-Powered</span>
+                    <span class="feature-tag">Natural Language</span>
+                    <span class="feature-tag">Instant Deploy</span>
+                </div>
+                <div class="status-badge" style="background: #4CAF50;">NEW</div>
+            </a>
+        </div>
+
+        <div class="vision-section">
+            <div class="vision-title">Why This Changes Everything</div>
+            <div class="vision-text">
+                <strong>Traditional development:</strong> Write 50,000 lines of code, debug for months, deploy slowly, run at snail speed.<br><br>
+                <strong>DBBasic development:</strong> Write 50 lines of config, deploy instantly, run at 402M rows/sec, sleep peacefully.<br><br>
+                This isn't an incremental improvement. It's a paradigm shift. Config replaces code. Speed becomes standard. Complexity dies.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Blog Platform - 20 lines replaces WordPress
+
+name: "Blog Platform"
+version: 1.0
+
+model:
+  posts: [id, title, slug, content, author, status, created, updated]
+  comments: [id, post_id, author_name, email, content, approved, created]
+  categories: [id, name, slug]
+  post_categories: [post_id, category_id]
+
+views:
+  published: "SELECT * FROM posts WHERE status = 'published' ORDER BY created DESC"
+  drafts: "SELECT * FROM posts WHERE status = 'draft' ORDER BY updated DESC"
+  recent_comments: "SELECT * FROM comments WHERE approved = true ORDER BY created DESC LIMIT 10"
+
+forms:
+  post_form: auto
+  comment_form: auto

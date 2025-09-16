@@ -1,0 +1,116 @@
+# Enterprise System - 100 lines replaces SAP
+# Shows real-time, agents, integrations - what Rails couldn't do
+
+name: "Enterprise System"
+version: 2.0
+
+model:
+  customers:
+    fields: [id, name, email, company, revenue, tier, created]
+    indexes: [email, created]
+    computed:
+      lifetime_value: "SELECT SUM(total) FROM orders WHERE customer_id = customers.id"
+
+  orders:
+    fields: [id, customer_id, total, status, created]
+    relations:
+      customer_id: customers.id
+    workflow:
+      states: [draft, confirmed, processing, shipped, delivered]
+      transitions:
+        draft: [confirmed]
+        confirmed: [processing]
+        processing: [shipped]
+        shipped: [delivered]
+
+  products:
+    fields: [id, sku, name, description, price, cost, stock, reorder_point]
+    indexes: [sku]
+    computed:
+      in_stock: "stock > 0"
+      margin: "price - cost"
+      needs_reorder: "stock < reorder_point"
+
+  inventory_movements:
+    fields: [id, product_id, quantity, type, reason, created]
+    relations:
+      product_id: products.id
+
+views:
+  # Executive Dashboard
+  executive:
+    revenue_today: "SELECT SUM(total) FROM orders WHERE DATE(created) = CURRENT_DATE"
+    revenue_mtd: "SELECT SUM(total) FROM orders WHERE MONTH(created) = MONTH(CURRENT_DATE)"
+    new_customers: "SELECT COUNT(*) FROM customers WHERE DATE(created) = CURRENT_DATE"
+
+  # Operations Dashboard
+  operations:
+    pending_orders: "SELECT COUNT(*) FROM orders WHERE status = 'confirmed'"
+    low_stock: "SELECT * FROM products WHERE stock < reorder_point"
+    shipments_today: "SELECT COUNT(*) FROM orders WHERE status = 'shipped' AND DATE(created) = CURRENT_DATE"
+
+  # Customer Analytics
+  analytics:
+    top_customers: "SELECT c.*, SUM(o.total) as total_spent FROM customers c JOIN orders o ON c.id = o.customer_id GROUP BY c.id ORDER BY total_spent DESC LIMIT 10"
+    product_performance: "SELECT p.name, COUNT(oi.id) as units_sold, SUM(oi.quantity * oi.price) as revenue FROM products p JOIN order_items oi ON p.id = oi.product_id GROUP BY p.id ORDER BY revenue DESC"
+
+forms:
+  customer:
+    fields: [name, email, company, tier]
+    validation:
+      email: "email_format"
+      tier: "in:bronze,silver,gold,platinum"
+
+  order:
+    fields: [customer_id, products, total]
+    actions:
+      on_submit: "calculate_total, update_inventory, send_confirmation"
+
+  product:
+    fields: [sku, name, description, price, cost, stock, reorder_point]
+    validation:
+      sku: "unique"
+      price: "min:0"
+      cost: "min:0"
+
+agents:
+  inventory_manager:
+    trigger: "products.stock < products.reorder_point"
+    task: "Generate purchase order for low stock items"
+    output: "email:purchasing@company.com"
+
+  daily_reporter:
+    schedule: "0 9 * * *"  # 9 AM daily
+    task: "Generate executive summary with revenue, orders, and customer metrics"
+    output: "email:executives@company.com"
+
+  customer_scorer:
+    trigger: "new customer"
+    task: "Calculate customer score based on company size and industry"
+    output: "update:customers.tier"
+
+  order_processor:
+    trigger: "orders.status = 'confirmed'"
+    task: "Process payment, update inventory, schedule shipping"
+
+integrations:
+  stripe:
+    api_key: "${STRIPE_KEY}"
+    webhook: "/webhooks/stripe"
+    events: [payment_intent.succeeded, payment_intent.failed]
+
+  sendgrid:
+    api_key: "${SENDGRID_KEY}"
+    from: "noreply@company.com"
+
+  slack:
+    webhook_url: "${SLACK_WEBHOOK}"
+    channels:
+      alerts: "#ops-alerts"
+      orders: "#new-orders"
+
+permissions:
+  admin: "*"
+  manager: "read:*, write:orders, write:customers"
+  sales: "read:products, read:customers, write:orders"
+  customer: "read:own_orders, write:own_profile"

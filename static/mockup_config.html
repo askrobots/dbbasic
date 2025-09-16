@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic Config Editor - Everything is Config</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .config-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .file-tree {
+            width: 250px;
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        
+        .tree-header {
+            text-transform: uppercase;
+            font-size: 11px;
+            color: #858585;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        
+        .tree-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tree-item:hover {
+            background: #2a2d2e;
+        }
+        
+        .tree-item.active {
+            background: #094771;
+        }
+        
+        .tree-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.8;
+        }
+        
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .editor-tabs {
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            overflow-x: auto;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            border-right: 1px solid #3e3e42;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+        
+        .tab:hover {
+            background: #2a2d2e;
+        }
+        
+        .tab.active {
+            background: #1e1e1e;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .editor {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .yaml-key {
+            color: #9cdcfe;
+        }
+        
+        .yaml-value {
+            color: #ce9178;
+        }
+        
+        .yaml-comment {
+            color: #6a9955;
+            font-style: italic;
+        }
+        
+        .yaml-array {
+            color: #d7ba7d;
+        }
+        
+        .line-number {
+            color: #858585;
+            margin-right: 2rem;
+            user-select: none;
+            display: inline-block;
+            width: 30px;
+            text-align: right;
+        }
+        
+        .preview-panel {
+            width: 400px;
+            background: #252526;
+            border-left: 1px solid #3e3e42;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        
+        .preview-header {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #858585;
+            margin-bottom: 1rem;
+        }
+        
+        .preview-content {
+            background: #1e1e1e;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #3e3e42;
+        }
+        
+        .metric:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            color: #858585;
+        }
+        
+        .metric-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .action-bar {
+            background: #2d2d30;
+            border-top: 1px solid #3e3e42;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #45a049;
+        }
+        
+        .btn-secondary {
+            background: #3e3e42;
+            color: #d4d4d4;
+        }
+        
+        .btn-secondary:hover {
+            background: #4e4e52;
+        }
+        
+        .performance-info {
+            color: #858585;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="logo">DBBasic</div>
+            <span style="color: #858585; font-size: 14px;">Config Editor</span>
+        </div>
+        <div class="config-status">
+            <div class="status-indicator"></div>
+            <span style="font-size: 14px;">All configs valid</span>
+        </div>
+        <div>
+            <button class="btn btn-secondary">Validate</button>
+            <button class="btn btn-primary">Apply Changes</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="file-tree">
+            <div class="tree-header">Configuration Files</div>
+            <div class="tree-item active">
+                <span class="tree-icon">📄</span>
+                <span>main.dbbasic</span>
+            </div>
+            <div class="tree-item">
+                <span class="tree-icon">📄</span>
+                <span>tables.yaml</span>
+            </div>
+            <div class="tree-item">
+                <span class="tree-icon">📄</span>
+                <span>views.yaml</span>
+            </div>
+            <div class="tree-item">
+                <span class="tree-icon">📄</span>
+                <span>workflows.yaml</span>
+            </div>
+            <div class="tree-item">
+                <span class="tree-icon">📄</span>
+                <span>agents.yaml</span>
+            </div>
+            <div class="tree-item">
+                <span class="tree-icon">📄</span>
+                <span>integrations.yaml</span>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-tabs">
+                <div class="tab active">
+                    <span>📄</span>
+                    <span>main.dbbasic</span>
+                </div>
+                <div class="tab">
+                    <span>📄</span>
+                    <span>tables.yaml</span>
+                </div>
+            </div>
+            <div class="editor">
+                <div>
+                    <span class="line-number">1</span><span class="yaml-comment"># DBBasic Configuration - Everything is just config</span>
+                </div>
+                <div>
+                    <span class="line-number">2</span><span class="yaml-comment"># This replaces 50,000 lines of traditional code</span>
+                </div>
+                <div>
+                    <span class="line-number">3</span>
+                </div>
+                <div>
+                    <span class="line-number">4</span><span class="yaml-key">name:</span> <span class="yaml-value">"E-Commerce Platform"</span>
+                </div>
+                <div>
+                    <span class="line-number">5</span><span class="yaml-key">version:</span> <span class="yaml-value">"2.0"</span>
+                </div>
+                <div>
+                    <span class="line-number">6</span><span class="yaml-key">performance:</span> <span class="yaml-value">"402M rows/sec"</span>
+                </div>
+                <div>
+                    <span class="line-number">7</span>
+                </div>
+                <div>
+                    <span class="line-number">8</span><span class="yaml-comment"># Tables - Your data structure</span>
+                </div>
+                <div>
+                    <span class="line-number">9</span><span class="yaml-key">tables:</span>
+                </div>
+                <div>
+                    <span class="line-number">10</span>  <span class="yaml-key">customers:</span>
+                </div>
+                <div>
+                    <span class="line-number">11</span>    <span class="yaml-key">schema:</span> <span class="yaml-array">[id, email, name, created, lifetime_value]</span>
+                </div>
+                <div>
+                    <span class="line-number">12</span>    <span class="yaml-key">indexes:</span> <span class="yaml-array">[email, created]</span>
+                </div>
+                <div>
+                    <span class="line-number">13</span>    <span class="yaml-key">validation:</span>
+                </div>
+                <div>
+                    <span class="line-number">14</span>      <span class="yaml-key">email:</span> <span class="yaml-value">"valid_email"</span>
+                </div>
+                <div>
+                    <span class="line-number">15</span>      <span class="yaml-key">lifetime_value:</span> <span class="yaml-value">"positive_number"</span>
+                </div>
+                <div>
+                    <span class="line-number">16</span>
+                </div>
+                <div>
+                    <span class="line-number">17</span>  <span class="yaml-key">orders:</span>
+                </div>
+                <div>
+                    <span class="line-number">18</span>    <span class="yaml-key">schema:</span> <span class="yaml-array">[id, customer_id, total, status, created]</span>
+                </div>
+                <div>
+                    <span class="line-number">19</span>    <span class="yaml-key">workflow:</span> <span class="yaml-array">[draft, confirmed, processing, shipped, delivered]</span>
+                </div>
+                <div>
+                    <span class="line-number">20</span>    <span class="yaml-key">relations:</span>
+                </div>
+                <div>
+                    <span class="line-number">21</span>      <span class="yaml-key">customer_id:</span> <span class="yaml-value">"customers.id"</span>
+                </div>
+                <div>
+                    <span class="line-number">22</span>
+                </div>
+                <div>
+                    <span class="line-number">23</span>  <span class="yaml-key">products:</span>
+                </div>
+                <div>
+                    <span class="line-number">24</span>    <span class="yaml-key">schema:</span> <span class="yaml-array">[id, sku, name, price, stock, category]</span>
+                </div>
+                <div>
+                    <span class="line-number">25</span>    <span class="yaml-key">computed:</span>
+                </div>
+                <div>
+                    <span class="line-number">26</span>      <span class="yaml-key">in_stock:</span> <span class="yaml-value">"stock > 0"</span>
+                </div>
+                <div>
+                    <span class="line-number">27</span>      <span class="yaml-key">low_stock:</span> <span class="yaml-value">"stock < 10"</span>
+                </div>
+                <div>
+                    <span class="line-number">28</span>
+                </div>
+                <div>
+                    <span class="line-number">29</span><span class="yaml-comment"># Views - How you query data</span>
+                </div>
+                <div>
+                    <span class="line-number">30</span><span class="yaml-key">views:</span>
+                </div>
+                <div>
+                    <span class="line-number">31</span>  <span class="yaml-key">dashboard:</span>
+                </div>
+                <div>
+                    <span class="line-number">32</span>    <span class="yaml-key">revenue_today:</span> <span class="yaml-value">"SUM(orders.total) WHERE DATE(created) = TODAY"</span>
+                </div>
+                <div>
+                    <span class="line-number">33</span>    <span class="yaml-key">orders_pending:</span> <span class="yaml-value">"COUNT(*) FROM orders WHERE status = 'processing'"</span>
+                </div>
+                <div>
+                    <span class="line-number">34</span>    <span class="yaml-key">low_stock_alert:</span> <span class="yaml-value">"SELECT * FROM products WHERE stock < 10"</span>
+                </div>
+                <div>
+                    <span class="line-number">35</span>
+                </div>
+                <div>
+                    <span class="line-number">36</span><span class="yaml-comment"># Agents - Autonomous operations</span>
+                </div>
+                <div>
+                    <span class="line-number">37</span><span class="yaml-key">agents:</span>
+                </div>
+                <div>
+                    <span class="line-number">38</span>  <span class="yaml-key">inventory_manager:</span>
+                </div>
+                <div>
+                    <span class="line-number">39</span>    <span class="yaml-key">schedule:</span> <span class="yaml-value">"every 1 hour"</span>
+                </div>
+                <div>
+                    <span class="line-number">40</span>    <span class="yaml-key">task:</span> <span class="yaml-value">"Check low stock and create purchase orders"</span>
+                </div>
+                <div>
+                    <span class="line-number">41</span>    <span class="yaml-key">ai_model:</span> <span class="yaml-value">"gpt-4"</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <div class="preview-header">Live Preview</div>
+            
+            <div class="preview-content">
+                <h3 style="margin-bottom: 1rem;">Configuration Impact</h3>
+                <div class="metric">
+                    <span class="metric-label">Lines of Config</span>
+                    <span class="metric-value">41</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Replaces Code</span>
+                    <span class="metric-value">~50,000 lines</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tables Defined</span>
+                    <span class="metric-value">3</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Views Created</span>
+                    <span class="metric-value">3</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Agents Active</span>
+                    <span class="metric-value">1</span>
+                </div>
+            </div>
+
+            <div class="preview-content">
+                <h3 style="margin-bottom: 1rem;">Performance</h3>
+                <div class="metric">
+                    <span class="metric-label">Processing Speed</span>
+                    <span class="metric-value">402M rows/sec</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Query Latency</span>
+                    <span class="metric-value">0.002ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Usage</span>
+                    <span class="metric-value">124 MB</span>
+                </div>
+            </div>
+
+            <div class="preview-content">
+                <h3 style="margin-bottom: 1rem;">Validation</h3>
+                <div style="color: #4CAF50; margin-bottom: 0.5rem;">✓ All schemas valid</div>
+                <div style="color: #4CAF50; margin-bottom: 0.5rem;">✓ No circular dependencies</div>
+                <div style="color: #4CAF50; margin-bottom: 0.5rem;">✓ Queries optimized</div>
+                <div style="color: #4CAF50;">✓ Ready to deploy</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <div class="performance-info">
+            Auto-save enabled | Last saved: 2 seconds ago | Config is 99.8% smaller than equivalent code
+        </div>
+        <div>
+            <button class="btn btn-secondary">Preview</button>
+            <button class="btn btn-secondary">Test</button>
+            <button class="btn btn-primary">Deploy Instantly</button>
+        </div>
+    </div>
+</body>
+</html>

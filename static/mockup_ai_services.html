@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic - AI Service Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tabs {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            padding: 0 1rem;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            color: #666;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .service-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .service-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .service-description {
+            color: #666;
+            margin-bottom: 1rem;
+            font-size: 14px;
+        }
+
+        .service-endpoint {
+            background: #f0f0f0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            margin-bottom: 1rem;
+        }
+
+        .service-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-generating {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .create-form {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-hint {
+            margin-top: 0.25rem;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .ai-suggestion {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            font-size: 13px;
+            color: #495057;
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+            margin-right: 1rem;
+        }
+
+        .code-preview {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+
+        .code-comment {
+            color: #6a9955;
+        }
+
+        .code-keyword {
+            color: #c586c0;
+        }
+
+        .code-string {
+            color: #ce9178;
+        }
+
+        .code-function {
+            color: #dcdcaa;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 0.5rem;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .test-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .test-input {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .test-output {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 4px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="logo">DBBasic</div>
+            <div class="header-subtitle">AI Service Builder - Natural Language to Running Services</div>
+        </div>
+        <div>
+            <span style="margin-right: 2rem;">🚀 402M rows/sec</span>
+            <span class="live-indicator"></span>
+            <span style="margin-left: 0.5rem;">All services running</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div style="padding: 1rem; border-bottom: 1px solid #e0e0e0;">
+                <h3 style="margin-bottom: 1rem;">Active Services</h3>
+                <input type="text" placeholder="Search services..." class="form-input" style="font-size: 13px;">
+            </div>
+
+            <div style="padding: 1rem;">
+                <div class="service-card">
+                    <div class="service-name">calculate_order_total</div>
+                    <div class="service-description">Calculate tax based on customer location</div>
+                    <div class="service-status status-active">Active</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-name">send_notification</div>
+                    <div class="service-description">Send order confirmation emails</div>
+                    <div class="service-status status-active">Active</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-name">detect_fraud</div>
+                    <div class="service-description">Score orders for fraud risk</div>
+                    <div class="service-status status-active">Active</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-name">segment_customer</div>
+                    <div class="service-description">Categorize customers by value</div>
+                    <div class="service-status status-generating">Generating...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tabs">
+                <div class="tab active">Create Service</div>
+                <div class="tab">Test Service</div>
+                <div class="tab">Generated Code</div>
+                <div class="tab">Metrics</div>
+            </div>
+
+            <div class="tab-content">
+                <div class="create-form">
+                    <h2 style="margin-bottom: 2rem;">Create AI Service from Description</h2>
+
+                    <div class="form-group">
+                        <label class="form-label">Service Name</label>
+                        <input type="text" class="form-input" placeholder="e.g., calculate_shipping_cost" value="calculate_shipping_cost">
+                        <div class="form-hint">Use snake_case. This becomes your endpoint: /ai/calculate_shipping_cost</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Natural Language Description</label>
+                        <textarea class="form-textarea" placeholder="Describe what this service should do...">Calculate shipping cost based on weight, dimensions, destination zip code, and shipping speed. Use USPS rates for standard, UPS for express. Add $5 handling fee for fragile items. Free shipping over $100.</textarea>
+                        <div class="ai-suggestion">
+                            <strong>🤖 AI understands:</strong> This service will calculate shipping costs using carrier APIs, apply business rules for free shipping, and handle special item surcharges.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Expected Inputs</label>
+                        <input type="text" class="form-input" placeholder="weight, dimensions, zip_code, shipping_speed, is_fragile" value="weight, dimensions, zip_code, shipping_speed, is_fragile">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Expected Outputs</label>
+                        <input type="text" class="form-input" placeholder="shipping_cost, carrier, estimated_days" value="shipping_cost, carrier, estimated_days, free_shipping_applied">
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <button class="btn btn-secondary">Test with Mock Data</button>
+                        <button class="btn btn-primary" onclick="generateService()">Generate Service with AI</button>
+                    </div>
+                </div>
+
+                <div class="code-preview">
+                    <div><span class="code-comment"># AI-Generated Service (0.3 seconds to generate)</span></div>
+                    <div><span class="code-keyword">async def</span> <span class="code-function">calculate_shipping_cost</span>(data: Dict) -> Dict:</div>
+                    <div>    <span class="code-string">"""Calculate shipping cost based on multiple factors"""</span></div>
+                    <div>    </div>
+                    <div>    <span class="code-comment"># Extract inputs</span></div>
+                    <div>    weight = data.get(<span class="code-string">'weight'</span>, 0)</div>
+                    <div>    dimensions = data.get(<span class="code-string">'dimensions'</span>, {})</div>
+                    <div>    zip_code = data.get(<span class="code-string">'zip_code'</span>)</div>
+                    <div>    speed = data.get(<span class="code-string">'shipping_speed'</span>, <span class="code-string">'standard'</span>)</div>
+                    <div>    is_fragile = data.get(<span class="code-string">'is_fragile'</span>, False)</div>
+                    <div>    order_total = data.get(<span class="code-string">'order_total'</span>, 0)</div>
+                    <div>    </div>
+                    <div>    <span class="code-comment"># AI determined shipping logic</span></div>
+                    <div>    <span class="code-keyword">if</span> order_total >= 100:</div>
+                    <div>        <span class="code-keyword">return</span> {</div>
+                    <div>            <span class="code-string">'shipping_cost'</span>: 0,</div>
+                    <div>            <span class="code-string">'free_shipping_applied'</span>: True,</div>
+                    <div>            <span class="code-string">'carrier'</span>: <span class="code-string">'USPS'</span>,</div>
+                    <div>            <span class="code-string">'estimated_days'</span>: 3</div>
+                    <div>        }</div>
+                    <div>    ...</div>
+                </div>
+
+                <div class="test-panel">
+                    <h3>Test Your Service</h3>
+                    <div class="test-input">
+{
+    "weight": 2.5,
+    "dimensions": {"length": 12, "width": 8, "height": 4},
+    "zip_code": "90210",
+    "shipping_speed": "express",
+    "is_fragile": true,
+    "order_total": 75
+}
+                    </div>
+                    <button class="btn btn-primary" style="margin: 1rem 0;">Run Test</button>
+                    <div class="test-output">
+{
+    "success": true,
+    "data": {
+        "shipping_cost": 18.50,
+        "carrier": "UPS",
+        "estimated_days": 2,
+        "free_shipping_applied": false,
+        "breakdown": {
+            "base_cost": 13.50,
+            "fragile_handling": 5.00
+        }
+    }
+}
+                    </div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">47</div>
+                        <div class="metric-label">Active Services</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">1.2M</div>
+                        <div class="metric-label">Requests Today</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">8ms</div>
+                        <div class="metric-label">Avg Response Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">99.99%</div>
+                        <div class="metric-label">Uptime</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generateService() {
+            // Simulate service generation
+            const statusElement = document.querySelector('.service-card:last-child .service-status');
+            statusElement.textContent = 'Generating...';
+            statusElement.className = 'service-status status-generating';
+
+            setTimeout(() => {
+                statusElement.textContent = 'Active';
+                statusElement.className = 'service-status status-active';
+                alert('Service generated and deployed! Endpoint: /ai/calculate_shipping_cost');
+            }, 2000);
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

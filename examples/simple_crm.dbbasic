@@ -1,0 +1,32 @@
+# Simple CRM - 30 lines replaces Salesforce
+# This is what Rails generators could never achieve
+
+name: "Simple CRM"
+version: 1.0
+
+model:
+  accounts:
+    fields: [id, name, industry, revenue, created]
+    indexes: [name, created]
+
+  contacts:
+    fields: [id, account_id, name, email, phone, title]
+    relations:
+      account_id: accounts.id
+
+  opportunities:
+    fields: [id, account_id, amount, stage, close_date]
+    relations:
+      account_id: accounts.id
+    workflow:
+      states: [lead, qualified, proposal, negotiation, closed_won, closed_lost]
+
+views:
+  pipeline: "SELECT stage, SUM(amount) as total FROM opportunities GROUP BY stage"
+  top_accounts: "SELECT * FROM accounts ORDER BY revenue DESC LIMIT 10"
+  recent_contacts: "SELECT * FROM contacts ORDER BY id DESC LIMIT 20"
+
+forms:
+  account_form: auto
+  contact_form: auto
+  opportunity_form: auto

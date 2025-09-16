@@ -1,0 +1,25 @@
+# DBBasic Requirements
+# The fastest way to build software (402M rows/sec)
+
+# Core Engine
+polars>=0.20.0
+duckdb>=0.9.0
+pyarrow>=14.0.0
+
+# Web Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+websockets>=12.0
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Data Processing
+pandas>=2.0.0  # For compatibility
+numpy>=1.24.0
+
+# Optional: AI Services
+# openai>=1.0.0  # Uncomment for AI service generation
+# anthropic>=0.5.0  # Uncomment for Claude integration

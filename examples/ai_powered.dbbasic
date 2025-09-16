@@ -1,0 +1,121 @@
+# AI-Powered DBBasic Config
+# Services are defined by description, not code
+
+name: "AI-Powered E-commerce"
+version: 3.0
+
+model:
+  orders:
+    fields: [id, customer_id, subtotal, tax, total, status]
+    hooks:
+      before_save: "ai://calculate_order_total"
+      after_create: "ai://send_order_confirmation"
+      after_update: "ai://sync_inventory"
+
+  customers:
+    fields: [id, name, email, lifetime_value, segment]
+    hooks:
+      after_create: "ai://send_welcome_email"
+      after_update: "ai://recalculate_customer_segment"
+
+  products:
+    fields: [id, name, price, cost, stock]
+    hooks:
+      before_save: "ai://validate_pricing"
+      after_update: "ai://update_search_index"
+
+# AI Service Definitions - Just describe what you want
+ai_services:
+  calculate_order_total:
+    description: "Calculate tax based on customer location and add to subtotal for total"
+    inputs: [subtotal, customer_location]
+    outputs: [tax, total]
+
+  send_order_confirmation:
+    description: "Send a nice order confirmation email with order details and tracking link"
+    inputs: [customer_email, order_id, items]
+    outputs: [email_sent, message_id]
+
+  sync_inventory:
+    description: "Reduce stock levels for ordered items and trigger reorder if below threshold"
+    inputs: [items, quantities]
+    outputs: [stock_levels, reorder_triggered]
+
+  send_welcome_email:
+    description: "Send personalized welcome email with 10% discount code valid for 30 days"
+    inputs: [customer_name, customer_email]
+    outputs: [email_sent, discount_code]
+
+  recalculate_customer_segment:
+    description: "Segment customer as bronze/silver/gold/platinum based on lifetime value and order frequency"
+    inputs: [customer_id, lifetime_value, order_count]
+    outputs: [segment, benefits]
+
+  validate_pricing:
+    description: "Ensure price is at least 20% above cost and within market range"
+    inputs: [price, cost, product_category]
+    outputs: [valid, suggested_price]
+
+  update_search_index:
+    description: "Update Elasticsearch with product changes, boost popular items"
+    inputs: [product_id, product_data]
+    outputs: [indexed, search_rank]
+
+# Even complex business logic becomes a description
+workflows:
+  order_fulfillment:
+    states: [placed, paid, packed, shipped, delivered]
+    transitions:
+      placed_to_paid:
+        service: "ai://process_payment"
+        description: "Charge credit card, handle failures, retry if needed"
+
+      paid_to_packed:
+        service: "ai://assign_to_warehouse"
+        description: "Find closest warehouse with stock, create pick list"
+
+      packed_to_shipped:
+        service: "ai://create_shipping_label"
+        description: "Choose cheapest shipping method that meets delivery date"
+
+      shipped_to_delivered:
+        service: "ai://track_delivery"
+        description: "Monitor tracking, notify customer of delays"
+
+# Scheduled AI agents
+agents:
+  demand_forecaster:
+    schedule: "0 0 * * *"  # Daily
+    service: "ai://forecast_demand"
+    description: "Analyze sales trends and predict next 30 days demand by product"
+
+  price_optimizer:
+    schedule: "0 */4 * * *"  # Every 4 hours
+    service: "ai://optimize_prices"
+    description: "Adjust prices based on competitor pricing, demand, and margin targets"
+
+  customer_retention:
+    trigger: "customer.last_order > 60 days"
+    service: "ai://retention_campaign"
+    description: "Send personalized win-back offer based on purchase history"
+
+  fraud_detector:
+    trigger: "new order"
+    service: "ai://detect_fraud"
+    description: "Score order for fraud risk using customer history and patterns"
+
+# AI can even handle integrations
+integrations:
+  stripe:
+    adapter: "ai://stripe_adapter"
+    description: "Handle all Stripe payment operations and webhooks"
+
+  shopify:
+    adapter: "ai://shopify_sync"
+    description: "Two-way sync of products, orders, and inventory"
+
+  chatgpt:
+    adapter: "ai://customer_support"
+    description: "Answer customer questions using order and product data"
+
+# The entire business logic is descriptions, not code
