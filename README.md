@@ -36,6 +36,27 @@ forms:
 
 That's it. Full application. Running at 402M rows/sec.
 
+## 📈 The New Development Lifecycle
+
+**How long does it take to add a feature?**
+
+### Old Way: 2-4 Weeks
+```
+User Request → PM writes stories → Sprint planning → Developer codes →
+Code review → QA testing → Deploy → Bug fixes → Finally live
+```
+
+### DBBasic Way: 30 Minutes
+```
+User Request → PM writes spec → Config change → Git commit → Auto-deploy → Live
+```
+
+**Real Example: Adding User Avatars**
+- **Traditional:** 2 weeks, 500+ lines of code, 20+ files changed
+- **DBBasic:** 30 minutes, 4 lines of config, 1 file changed
+
+[📖 See the complete development lifecycle comparison →](docs/THE_NEW_DEVELOPMENT_LIFECYCLE.md)
+
 ## 🎯 Quick Start
 
 ```bash
