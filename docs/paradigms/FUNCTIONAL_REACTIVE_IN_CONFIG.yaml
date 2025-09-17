@@ -1,0 +1,252 @@
+# Functional Reactive Programming in Config
+# Streams, observables, pure functions
+# What MVC couldn't express elegantly
+
+name: "Reactive Application"
+paradigm: "Functional Reactive Programming"
+why_mvc_failed: "Imperative state mutations don't compose"
+
+# ==========================================
+# REACTIVE STREAMS → CONFIG
+# ==========================================
+streams:
+  # RxJS, Bacon.js, Akka Streams style
+
+  user_activity:
+    source: "websocket://events"
+
+    pipeline:
+      - filter: "event.type === 'click'"
+      - throttle: "1000ms"
+      - map: "event => ({...event, timestamp: Date.now()})"
+      - buffer: "5 seconds"
+      - flat_map: "events => analytics.batch(events)"
+
+    sink: "database"
+
+  price_updates:
+    source: "kafka://prices"
+
+    operators:
+      - distinct_until_changed: "price"
+      - debounce: "500ms"
+      - scan: "(acc, price) => [...acc.slice(-10), price]"
+      - map: "calculate_moving_average"
+
+    subscribers:
+      - update_ui
+      - send_alerts
+      - log_to_database
+
+# ==========================================
+# PURE FUNCTIONS → CONFIG
+# ==========================================
+functions:
+  # No side effects, composable
+
+  calculate_tax:
+    inputs: [subtotal, state]
+    pure: true
+    memoize: true
+    logic: |
+      match state:
+        "CA" => subtotal * 0.0725
+        "TX" => subtotal * 0.0625
+        _ => subtotal * 0.05
+
+  compose_validators:
+    inputs: [validators]
+    returns: "value => validators.every(v => v(value))"
+
+  lens:
+    # Functional lenses for immutable updates
+    user_email:
+      get: "user => user.email"
+      set: "(email, user) => {...user, email}"
+
+# ==========================================
+# OBSERVABLES → CONFIG
+# ==========================================
+observables:
+  # Everything is a stream
+
+  mouse_position:
+    source: "fromEvent(document, 'mousemove')"
+    transform:
+      - map: "e => ({x: e.clientX, y: e.clientY})"
+      - sample: "100ms"
+
+  search_suggestions:
+    source: "fromEvent(input, 'input')"
+    transform:
+      - map: "e => e.target.value"
+      - debounce: "300ms"
+      - distinct_until_changed
+      - switch_map: "query => api.search(query)"
+
+  websocket_reconnect:
+    source: "websocket"
+    retry:
+      strategy: "exponential_backoff"
+      max_attempts: 5
+
+# ==========================================
+# STATE MANAGEMENT (REDUX STYLE) → CONFIG
+# ==========================================
+state:
+  # Immutable, time-travel debugging
+
+  store:
+    initial:
+      users: []
+      posts: []
+      ui:
+        loading: false
+        error: null
+
+  actions:
+    FETCH_USERS: {type: "FETCH_USERS"}
+    USERS_LOADED: {type: "USERS_LOADED", payload: "users"}
+    USERS_ERROR: {type: "USERS_ERROR", payload: "error"}
+
+  reducers:
+    users:
+      USERS_LOADED: "(state, action) => action.payload"
+      USER_ADDED: "(state, action) => [...state, action.payload]"
+
+    ui:
+      FETCH_USERS: "(state) => {...state, loading: true}"
+      USERS_LOADED: "(state) => {...state, loading: false}"
+      USERS_ERROR: "(state, action) => {...state, loading: false, error: action.payload}"
+
+  epics:
+    # Redux-Observable style
+    fetch_users_epic:
+      trigger: "FETCH_USERS"
+      effect: |
+        action$.pipe(
+          switchMap(() =>
+            ajax.getJSON('/api/users').pipe(
+              map(users => ({type: 'USERS_LOADED', payload: users})),
+              catchError(error => ({type: 'USERS_ERROR', payload: error}))
+            )
+          )
+        )
+
+# ==========================================
+# SIGNAL/COMPUTED VALUES → CONFIG
+# ==========================================
+signals:
+  # Like SolidJS, Vue 3 reactivity
+
+  count:
+    value: 0
+
+  doubled:
+    computed: "count() * 2"
+
+  tripled:
+    computed: "count() * 3"
+
+  total:
+    computed: "doubled() + tripled()"
+
+  effect:
+    watch: [count]
+    run: "console.log('Count changed:', count())"
+
+# ==========================================
+# MONADS & FUNCTORS → CONFIG
+# ==========================================
+monads:
+  # Maybe, Either, IO
+
+  Maybe:
+    of: "value => value != null ? Some(value) : None()"
+    map: "fn => maybe.isNone ? None() : Some(fn(maybe.value))"
+    chain: "fn => maybe.isNone ? None() : fn(maybe.value)"
+
+  Either:
+    try:
+      attempt: "api.fetchUser(id)"
+      on_success: "Right(user)"
+      on_error: "Left(error)"
+
+  IO:
+    # Lazy evaluation
+    chain:
+      - "() => readFile('config.yaml')"
+      - "content => parseYAML(content)"
+      - "config => validateConfig(config)"
+
+# ==========================================
+# TRANSDUCERS → CONFIG
+# ==========================================
+transducers:
+  # Composable transformations
+
+  process_orders:
+    compose:
+      - filter: "order => order.total > 100"
+      - map: "order => applyDiscount(order)"
+      - take: 10
+
+    apply_to:
+      - array: "orders"
+      - stream: "order_stream"
+      - channel: "order_channel"
+
+# ==========================================
+# DATAFLOW PROGRAMMING → CONFIG
+# ==========================================
+dataflow:
+  # Nodes and edges, like Node-RED
+
+  nodes:
+    input:
+      type: "http_request"
+      output: "request"
+
+    validate:
+      type: "function"
+      input: "request"
+      function: "validate_request"
+      output: "validated_data"
+
+    transform:
+      type: "function"
+      input: "validated_data"
+      function: "transform_data"
+      output: "transformed"
+
+    save:
+      type: "database"
+      input: "transformed"
+      operation: "insert"
+      output: "result"
+
+    response:
+      type: "http_response"
+      input: "result"
+
+  edges:
+    - from: "input", to: "validate"
+    - from: "validate", to: "transform"
+    - from: "transform", to: "save"
+    - from: "save", to: "response"
+
+# ==========================================
+# WHY THIS MATTERS
+# ==========================================
+# MVC assumes:
+# - Request → Controller → Model → View
+# - Imperative updates
+# - Mutable state
+#
+# FRP assumes:
+# - Everything is a stream
+# - Declarative transformations
+# - Immutable data
+#
+# DBBasic unifies both paradigms
+# ==========================================

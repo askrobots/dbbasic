@@ -1,0 +1,293 @@
+# Microservices Architecture in Config
+# What Rails/Django couldn't do: distributed services
+# Service mesh, API gateways, distributed tracing
+
+name: "Microservices Platform"
+paradigm: "Service-Oriented Architecture"
+why_mvc_failed: "Monoliths don't scale horizontally"
+
+# ==========================================
+# SERVICE DEFINITIONS → CONFIG
+# ==========================================
+services:
+  # Each service is independent
+
+  user-service:
+    language: "auto"  # Don't care
+    database: "postgres"
+
+    api:
+      REST:
+        GET /users: "list all users"
+        GET /users/:id: "get user"
+        POST /users: "create user"
+
+      gRPC:
+        GetUser: "returns User"
+        ListUsers: "returns UserList"
+
+    dependencies:
+      - auth-service
+      - notification-service
+
+    scaling:
+      min_replicas: 2
+      max_replicas: 10
+      metric: "cpu > 70%"
+
+  order-service:
+    database: "mongodb"
+
+    api:
+      REST:
+        POST /orders: "create order"
+        GET /orders/:id: "get order"
+
+    events:
+      publishes:
+        - OrderCreated
+        - OrderShipped
+
+      subscribes:
+        - PaymentCompleted
+        - InventoryUpdated
+
+    resilience:
+      timeout: 5s
+      retry: 3
+      circuit_breaker: true
+
+  payment-service:
+    database: "dynamodb"
+
+    api:
+      REST:
+        POST /payments: "process payment"
+
+    external:
+      stripe:
+        api_key: "${STRIPE_KEY}"
+
+    compliance:
+      pci_dss: true
+      audit_log: true
+
+# ==========================================
+# API GATEWAY → CONFIG
+# ==========================================
+gateway:
+  # Kong, Envoy, nginx - whatever
+
+  routes:
+    /api/users:
+      service: "user-service"
+      methods: ["GET", "POST"]
+      auth: "jwt"
+
+    /api/orders:
+      service: "order-service"
+      rate_limit: "100/minute"
+
+    /api/payments:
+      service: "payment-service"
+      auth: "jwt"
+      policies:
+        - pci_compliance
+        - audit_logging
+
+  plugins:
+    - cors
+    - rate_limiting
+    - jwt_auth
+    - request_logging
+
+# ==========================================
+# SERVICE MESH → CONFIG
+# ==========================================
+mesh:
+  # Istio, Linkerd - handle service-to-service
+
+  traffic_management:
+    retry:
+      attempts: 3
+      timeout: 5s
+
+    load_balancing:
+      strategy: "round_robin"
+
+    circuit_breaker:
+      consecutive_errors: 5
+      interval: 30s
+
+  security:
+    mtls: true  # Mutual TLS
+    authorization_policy:
+      - from: "user-service"
+        to: "order-service"
+        methods: ["GET", "POST"]
+
+  observability:
+    metrics: "prometheus"
+    tracing: "jaeger"
+    logging: "fluentd"
+
+# ==========================================
+# EVENT BUS → CONFIG
+# ==========================================
+events:
+  # Kafka, RabbitMQ, NATS - whatever
+
+  broker: "auto"
+
+  topics:
+    orders:
+      partitions: 10
+      replication: 3
+      retention: "7 days"
+
+    payments:
+      partitions: 5
+      replication: 3
+
+  streams:
+    order_processing:
+      from: "orders"
+      to: "processed_orders"
+      processor: |
+        validate_order
+        enrich_with_user_data
+        calculate_taxes
+        emit_to_processed
+
+# ==========================================
+# DISTRIBUTED TRANSACTIONS → CONFIG
+# ==========================================
+transactions:
+  # Saga pattern for distributed tx
+
+  create_order:
+    type: "saga"
+
+    steps:
+      - service: "inventory-service"
+        action: "reserve_items"
+        compensate: "release_items"
+
+      - service: "payment-service"
+        action: "charge_card"
+        compensate: "refund_payment"
+
+      - service: "shipping-service"
+        action: "create_shipment"
+        compensate: "cancel_shipment"
+
+# ==========================================
+# SERVICE DISCOVERY → CONFIG
+# ==========================================
+discovery:
+  # Consul, Eureka, etcd
+
+  provider: "auto"
+
+  health_checks:
+    http:
+      path: "/health"
+      interval: 10s
+      timeout: 3s
+
+    tcp:
+      interval: 10s
+
+  load_balancing:
+    strategy: "least_connections"
+    sticky_sessions: false
+
+# ==========================================
+# DISTRIBUTED CACHING → CONFIG
+# ==========================================
+cache:
+  # Redis Cluster, Hazelcast
+
+  distributed: true
+
+  regions:
+    user_cache:
+      ttl: 600
+      max_size: 10000
+      eviction: "LRU"
+
+    session_cache:
+      ttl: 3600
+      replicas: 3
+
+  cache_aside:
+    patterns:
+      - "GET /users/*"
+      - "GET /products/*"
+
+# ==========================================
+# DISTRIBUTED TRACING → CONFIG
+# ==========================================
+tracing:
+  # OpenTelemetry, Jaeger, Zipkin
+
+  provider: "opentelemetry"
+
+  sampling:
+    strategy: "adaptive"
+    rate: 0.1  # 10%
+
+  spans:
+    auto_instrument:
+      - http_requests
+      - database_queries
+      - cache_operations
+
+  baggage:
+    - user_id
+    - request_id
+    - session_id
+
+# ==========================================
+# CONTAINER ORCHESTRATION → CONFIG
+# ==========================================
+deployment:
+  # Kubernetes, Nomad, Docker Swarm
+
+  platform: "kubernetes"
+
+  services:
+    user-service:
+      image: "auto-built"
+      replicas: 3
+      resources:
+        cpu: "500m"
+        memory: "512Mi"
+
+      autoscaling:
+        min: 2
+        max: 10
+        metric: "cpu > 70%"
+
+      health:
+        liveness: "/health"
+        readiness: "/ready"
+
+# ==========================================
+# WHY THIS MATTERS
+# ==========================================
+# Rails/Django assume:
+# - Single database
+# - Monolithic deployment
+# - Synchronous calls
+# - Shared memory/state
+#
+# Microservices assume:
+# - Service per database
+# - Independent deployment
+# - Async communication
+# - Network boundaries
+#
+# DBBasic handles both monoliths AND microservices
+# Same config can generate either architecture
+# ==========================================

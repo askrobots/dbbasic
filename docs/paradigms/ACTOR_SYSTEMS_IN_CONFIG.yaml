@@ -1,0 +1,275 @@
+# Actor Systems in Config
+# Erlang/Elixir/Akka patterns that MVC couldn't handle
+# Concurrent, distributed, fault-tolerant systems
+
+name: "Actor-Based Application"
+paradigm: "Actor Model (Erlang/Elixir/Akka)"
+why_mvc_failed: "Shared mutable state doesn't scale"
+
+# ==========================================
+# ACTOR DEFINITIONS → CONFIG
+# ==========================================
+actors:
+  # Each actor is isolated, has state, processes messages
+
+  UserActor:
+    state:
+      user_id: "string"
+      balance: "float"
+      transactions: "list"
+
+    messages:
+      Deposit:
+        params: [amount]
+        handler: |
+          state.balance += amount
+          state.transactions.append({type: 'deposit', amount})
+          reply(:ok, state.balance)
+
+      Withdraw:
+        params: [amount]
+        handler: |
+          if state.balance >= amount:
+            state.balance -= amount
+            reply(:ok, state.balance)
+          else:
+            reply(:error, 'insufficient_funds')
+
+      GetBalance:
+        handler: "reply(state.balance)"
+
+    supervision:
+      strategy: "one_for_one"  # Restart only failed actor
+      max_restarts: 3
+      max_seconds: 60
+
+  OrderProcessor:
+    state:
+      pending_orders: "queue"
+      processed_count: "integer"
+
+    messages:
+      ProcessOrder:
+        params: [order]
+        handler: |
+          validate_order(order)
+          charge_payment(order)
+          send_to_fulfillment(order)
+          state.processed_count += 1
+          broadcast(:order_completed, order)
+
+    mailbox:
+      capacity: 10000
+      overflow: "drop_oldest"
+
+# ==========================================
+# SUPERVISOR TREES → CONFIG
+# ==========================================
+supervision:
+  # Erlang OTP-style supervision
+
+  ApplicationSupervisor:
+    children:
+      - UserSupervisor
+      - OrderSupervisor
+      - CacheSupervisor
+
+    restart_strategy: "one_for_all"  # All children restart together
+
+  UserSupervisor:
+    children:
+      - UserRegistry
+      - UserActorPool
+
+    restart_strategy: "rest_for_one"  # Restart failed + all after it
+
+  DynamicSupervisor:
+    # Spawns actors on demand
+    child_spec: "UserActor"
+    max_children: 10000
+
+# ==========================================
+# MESSAGE PASSING → CONFIG
+# ==========================================
+messaging:
+  # No shared state, only messages
+
+  patterns:
+    request_reply:
+      timeout: 5000
+      on_timeout: "return :error"
+
+    fire_forget:
+      guaranteed: false
+
+    broadcast:
+      to: "all_actors_in_group"
+
+  routing:
+    # Route messages to actors
+    "/api/users/:id/balance":
+      actor: "UserActor-{id}"
+      message: "GetBalance"
+
+    "/api/orders/process":
+      actor: "OrderProcessor"
+      message: "ProcessOrder"
+      via: "round_robin"  # Load balance
+
+# ==========================================
+# DISTRIBUTED ACTORS → CONFIG
+# ==========================================
+clustering:
+  # Actors across multiple nodes
+
+  nodes:
+    - "node1@server1"
+    - "node2@server2"
+    - "node3@server3"
+
+  actor_placement:
+    strategy: "consistent_hashing"
+    replication: 3
+
+  network_splits:
+    strategy: "split_brain_resolver"
+    quorum: 2
+
+# ==========================================
+# PHOENIX LIVEVIEW STYLE → CONFIG
+# ==========================================
+liveview:
+  # Stateful server-rendered components
+
+  Counter:
+    state:
+      count: 0
+
+    mount:
+      handler: "assign(count: 0)"
+
+    events:
+      increment:
+        handler: "state.count += 1; push_update()"
+
+      decrement:
+        handler: "state.count -= 1; push_update()"
+
+    render: |
+      <div>
+        <button phx-click="decrement">-</button>
+        <span>{{ count }}</span>
+        <button phx-click="increment">+</button>
+      </div>
+
+# ==========================================
+# GENSERVER PATTERNS → CONFIG
+# ==========================================
+genservers:
+  # Elixir GenServer behavior
+
+  RateLimiter:
+    init:
+      state: "Map.new()"
+
+    handle_call:
+      check_rate:
+        params: [user_id]
+        handler: |
+          count = Map.get(state, user_id, 0)
+          if count < 100:
+            {:reply, :ok, Map.put(state, user_id, count + 1)}
+          else:
+            {:reply, :rate_limited, state}
+
+    handle_info:
+      reset_counters:
+        handler: "{:noreply, Map.new()}"
+        schedule: "every 1 minute"
+
+# ==========================================
+# EVENT SOURCING → CONFIG
+# ==========================================
+event_sourcing:
+  # Store events, not state
+
+  aggregates:
+    BankAccount:
+      events:
+        - AccountOpened
+        - MoneyDeposited
+        - MoneyWithdrawn
+
+      commands:
+        OpenAccount:
+          validates: "account doesn't exist"
+          emits: "AccountOpened"
+
+        Deposit:
+          validates: "account exists"
+          emits: "MoneyDeposited"
+
+      projections:
+        current_balance:
+          from_events: |
+            events.reduce(0, (bal, event) => {
+              switch(event.type) {
+                case 'MoneyDeposited': return bal + event.amount
+                case 'MoneyWithdrawn': return bal - event.amount
+              }
+            })
+
+# ==========================================
+# SAGA ORCHESTRATION → CONFIG
+# ==========================================
+sagas:
+  # Long-running distributed transactions
+
+  OrderFulfillmentSaga:
+    steps:
+      - ReserveInventory:
+          compensate: "ReleaseInventory"
+
+      - ChargePayment:
+          compensate: "RefundPayment"
+
+      - ShipOrder:
+          compensate: "CancelShipment"
+
+    on_failure:
+      strategy: "compensate_all"
+      notify: "admin"
+
+# ==========================================
+# BACKPRESSURE & FLOW CONTROL → CONFIG
+# ==========================================
+flow_control:
+  # Handle overload gracefully
+
+  backpressure:
+    strategy: "drop_newest"
+    threshold: 1000
+
+  circuit_breakers:
+    external_api:
+      failure_threshold: 5
+      timeout: 30000
+      reset_after: 60000
+
+# ==========================================
+# WHY THIS MATTERS
+# ==========================================
+# MVC frameworks (Rails/Django) assume:
+# - Shared mutable state (database)
+# - Request/response cycle
+# - Synchronous processing
+# - Single server (originally)
+#
+# Actor systems assume:
+# - Isolated actors with private state
+# - Message passing
+# - Asynchronous by default
+# - Distributed from day one
+#
+# DBBasic handles BOTH paradigms in config
+# ==========================================

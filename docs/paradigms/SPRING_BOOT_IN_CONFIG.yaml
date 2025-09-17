@@ -1,0 +1,385 @@
+# Spring Boot in Config
+# Everything Spring Boot does in ~200 lines of YAML
+# 100,000+ lines of Java → 200 lines
+
+name: "Spring Boot Application"
+framework_replaced: "Spring Boot + JPA + Security + WebFlux + Kafka"
+
+# ==========================================
+# JPA ENTITIES → CONFIG
+# ==========================================
+entities:
+  # @Entity classes
+  User:
+    table: "users"
+    fields:
+      id:
+        type: "Long"
+        annotations: ["@Id", "@GeneratedValue"]
+      email:
+        type: "String"
+        annotations: ["@Column(unique=true)", "@Email"]
+      password:
+        type: "String"
+        annotations: ["@JsonIgnore"]
+      roles:
+        type: "Set<Role>"
+        annotations: ["@ManyToMany(fetch=EAGER)"]
+
+    repository:
+      extends: "JpaRepository<User, Long>"
+      custom_queries:
+        findByEmail: "Optional<User>"
+        existsByEmail: "boolean"
+
+  Order:
+    fields:
+      id: "UUID"
+      customer: "@ManyToOne User"
+      items: "@OneToMany List<OrderItem>"
+      total: "BigDecimal"
+      status: "OrderStatus enum"
+
+    auditing: true  # @CreatedDate, @LastModifiedDate
+
+# ==========================================
+# REST CONTROLLERS → CONFIG
+# ==========================================
+controllers:
+  # @RestController classes
+  UserController:
+    base_path: "/api/users"
+
+    endpoints:
+      GET:
+        "/":
+          method: "findAll"
+          response: "Page<User>"
+          pageable: true
+
+        "/{id}":
+          method: "findById"
+          response: "User"
+          cache: "users"
+
+      POST:
+        "/":
+          method: "create"
+          body: "@Valid UserDTO"
+          response: "User"
+          status: "CREATED"
+
+      PUT:
+        "/{id}":
+          method: "update"
+          body: "@Valid UserDTO"
+          response: "User"
+
+      DELETE:
+        "/{id}":
+          method: "delete"
+          response: "void"
+          security: "hasRole('ADMIN')"
+
+# ==========================================
+# SPRING SECURITY → CONFIG
+# ==========================================
+security:
+  # SecurityConfig.java
+  authentication:
+    type: "JWT"
+    header: "Authorization"
+    prefix: "Bearer"
+    secret: "${JWT_SECRET}"
+    expiration: 3600
+
+  authorization:
+    matchers:
+      "/api/public/**": "permitAll()"
+      "/api/admin/**": "hasRole('ADMIN')"
+      "/api/**": "authenticated()"
+
+  cors:
+    allowed_origins: ["http://localhost:3000"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE"]
+    allowed_headers: ["*"]
+
+  csrf:
+    enabled: false  # Using JWT
+
+# ==========================================
+# SERVICES → CONFIG
+# ==========================================
+services:
+  # @Service classes
+  UserService:
+    dependencies:
+      - UserRepository
+      - PasswordEncoder
+      - EmailService
+
+    methods:
+      registerUser:
+        transaction: true
+        params: ["email", "password"]
+        logic: |
+          Check if user exists
+          Encode password
+          Save user
+          Send welcome email
+
+      authenticateUser:
+        params: ["email", "password"]
+        returns: "JWT token"
+
+# ==========================================
+# SPRING DATA JPA → CONFIG
+# ==========================================
+jpa:
+  # application.yml
+  datasource:
+    url: "jdbc:postgresql://localhost:5432/myapp"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+
+  hibernate:
+    ddl-auto: "validate"  # or update, create
+    dialect: "PostgreSQLDialect"
+    show_sql: false
+
+  properties:
+    batch_size: 20
+    cache:
+      use_second_level_cache: true
+      region_factory: "ehcache"
+
+# ==========================================
+# VALIDATION → CONFIG
+# ==========================================
+validation:
+  # DTO validation
+  UserDTO:
+    fields:
+      email:
+        - "@NotBlank"
+        - "@Email"
+      password:
+        - "@NotNull"
+        - "@Size(min=8, max=100)"
+      age:
+        - "@Min(18)"
+        - "@Max(120)"
+
+  custom_validators:
+    UniqueEmail:
+      message: "Email already exists"
+      logic: "!userRepository.existsByEmail(value)"
+
+# ==========================================
+# EXCEPTION HANDLING → CONFIG
+# ==========================================
+exceptions:
+  # @ControllerAdvice
+  handlers:
+    EntityNotFoundException:
+      status: "NOT_FOUND"
+      message: "Resource not found"
+
+    ValidationException:
+      status: "BAD_REQUEST"
+      message: "Validation failed"
+      include_errors: true
+
+    AccessDeniedException:
+      status: "FORBIDDEN"
+      message: "Access denied"
+
+  global_handler:
+    status: "INTERNAL_SERVER_ERROR"
+    message: "An error occurred"
+    log: true
+
+# ==========================================
+# MESSAGING (KAFKA/RABBITMQ) → CONFIG
+# ==========================================
+messaging:
+  # @KafkaListener, @RabbitListener
+  kafka:
+    bootstrap_servers: "localhost:9092"
+
+    producers:
+      order-events:
+        topic: "orders"
+        key_serializer: "StringSerializer"
+        value_serializer: "JsonSerializer"
+
+    consumers:
+      order-processor:
+        topics: ["orders"]
+        group_id: "order-processing-group"
+        handler: "processOrder"
+
+# ==========================================
+# SCHEDULED TASKS → CONFIG
+# ==========================================
+scheduling:
+  # @Scheduled
+  tasks:
+    cleanup_old_sessions:
+      cron: "0 0 * * * *"  # Every hour
+      method: "sessionRepository.deleteExpired()"
+
+    generate_reports:
+      fixed_delay: 3600000  # Every hour in ms
+      method: "reportService.generateHourly()"
+
+    send_reminders:
+      fixed_rate: 86400000  # Daily
+      initial_delay: 60000  # 1 minute
+
+# ==========================================
+# CACHING → CONFIG
+# ==========================================
+cache:
+  # @Cacheable, @CacheEvict
+  provider: "redis"
+
+  caches:
+    users:
+      ttl: 600  # 10 minutes
+      max_size: 1000
+
+    products:
+      ttl: 3600
+      max_size: 10000
+
+  methods:
+    getUserById:
+      cache: "users"
+      key: "#id"
+
+    evictUser:
+      evict: "users"
+      key: "#user.id"
+
+# ==========================================
+# WEBFLUX REACTIVE → CONFIG
+# ==========================================
+reactive:
+  # Reactive endpoints
+  endpoints:
+    "/api/stream/orders":
+      produces: "text/event-stream"
+      method: |
+        return orderRepository
+          .findAll()
+          .delayElements(Duration.ofSeconds(1))
+
+    "/api/reactive/users":
+      returns: "Flux<User>"
+      method: "userRepository.findAll()"
+
+# ==========================================
+# ACTUATOR & MONITORING → CONFIG
+# ==========================================
+actuator:
+  endpoints:
+    enabled: ["health", "metrics", "info"]
+
+  health:
+    show_details: "when-authorized"
+    indicators:
+      - database
+      - redis
+      - kafka
+
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# ==========================================
+# TESTING → CONFIG
+# ==========================================
+testing:
+  # @SpringBootTest, @MockBean
+  integration_tests:
+    UserControllerTest:
+      mock_beans: [UserService]
+      tests:
+        - "GET /api/users returns 200"
+        - "POST /api/users creates user"
+
+  unit_tests:
+    UserServiceTest:
+      mocks: [UserRepository, EmailService]
+      tests:
+        - "registerUser creates new user"
+        - "authenticateUser returns JWT"
+
+# ==========================================
+# BUILD & DEPLOYMENT → CONFIG
+# ==========================================
+build:
+  # pom.xml / build.gradle
+  packaging: "jar"
+  java_version: 17
+
+  dependencies:
+    - spring-boot-starter-web
+    - spring-boot-starter-data-jpa
+    - spring-boot-starter-security
+    - postgresql
+
+  plugins:
+    - spring-boot-maven-plugin
+    - dockerfile-maven-plugin
+
+deployment:
+  docker:
+    base_image: "openjdk:17-alpine"
+    port: 8080
+    health_check: "/actuator/health"
+
+  kubernetes:
+    replicas: 3
+    cpu_limit: "1000m"
+    memory_limit: "1Gi"
+
+# ==========================================
+# THE COMPARISON
+# ==========================================
+# Spring Boot Project Structure:
+#   my-spring-app/
+#     pom.xml (100+ dependencies)
+#     src/
+#       main/
+#         java/
+#           com/example/myapp/
+#             MyApplication.java
+#             config/
+#               SecurityConfig.java (200+ lines)
+#               WebConfig.java (100+ lines)
+#               CacheConfig.java (100+ lines)
+#             controller/ (20+ files, 2000+ lines)
+#             service/ (15+ files, 1500+ lines)
+#             repository/ (10+ files, 500+ lines)
+#             entity/ (15+ files, 1000+ lines)
+#             dto/ (20+ files, 1000+ lines)
+#             exception/ (10+ files, 500+ lines)
+#             util/ (10+ files, 1000+ lines)
+#         resources/
+#           application.yml (200+ lines)
+#           application-prod.yml
+#           db/migration/ (20+ SQL files)
+#       test/
+#         java/ (50+ test files, 5000+ lines)
+#
+# Total: 200+ files, 100,000+ lines of Java
+#
+# DBBasic: This 1 file, ~200 lines
+# ==========================================
+
+# THE REAL DIFFERENCE:
+# Spring Boot: 6 months to learn, AbstractSingletonProxyFactoryBean
+# DBBasic: 5 minutes to learn, just YAML

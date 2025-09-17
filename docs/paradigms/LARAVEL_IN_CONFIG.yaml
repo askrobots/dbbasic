@@ -1,0 +1,378 @@
+# Laravel in Config
+# Everything Laravel does in ~180 lines of YAML
+# 75,000 lines → 180 lines
+
+name: "Laravel Application"
+framework_replaced: "Laravel + Livewire + Inertia + Sanctum + Horizon"
+
+# ==========================================
+# ELOQUENT MODELS → CONFIG
+# ==========================================
+model:
+  # app/Models/
+  User:
+    extends: "Authenticatable"
+    fillable: ["name", "email", "password"]
+    hidden: ["password", "remember_token"]
+    casts:
+      email_verified_at: "datetime"
+      is_admin: "boolean"
+
+    relationships:
+      posts: "hasMany"
+      profile: "hasOne"
+      roles: "belongsToMany"
+
+  Post:
+    fillable: ["title", "slug", "content", "published_at"]
+    casts:
+      published_at: "datetime"
+      meta_data: "json"
+
+    scopes:
+      published: "WHERE published_at <= NOW()"
+      draft: "WHERE published_at IS NULL"
+
+# ==========================================
+# LARAVEL ROUTES → CONFIG
+# ==========================================
+routes:
+  # routes/web.php
+  web:
+    "/": "HomeController@index"
+    "/posts/{post:slug}": "PostController@show"
+    "/dashboard":
+      middleware: ["auth"]
+      controller: "DashboardController@index"
+
+  # routes/api.php
+  api:
+    prefix: "/api"
+    middleware: ["api", "throttle:60,1"]
+    routes:
+      "/posts": "ApiPostController"
+      "/users": "ApiUserController"
+
+  # Resource routes
+  resources:
+    posts: ["index", "show", "create", "store", "edit", "update", "destroy"]
+    middleware: ["auth"]
+
+# ==========================================
+# CONTROLLERS → CONFIG
+# ==========================================
+controllers:
+  # app/Http/Controllers/
+  PostController:
+    index:
+      view: "posts.index"
+      data:
+        posts: "Post::published()->paginate(10)"
+
+    show:
+      view: "posts.show"
+      data:
+        post: "Post::findOrFail($slug)"
+        related: "Post::related($post)->limit(3)"
+
+    store:
+      validate:
+        title: "required|string|max:255"
+        content: "required|string"
+      action: |
+        Post::create($validated)
+        redirect('/posts')->with('success', 'Post created!')
+
+# ==========================================
+# BLADE TEMPLATES → CONFIG
+# ==========================================
+templates:
+  # resources/views/
+  layout:
+    app: |
+      <!DOCTYPE html>
+      <html>
+        <head>
+          @yield('title')
+          @vite(['resources/css/app.css', 'resources/js/app.js'])
+        </head>
+        <body>
+          @include('partials.navigation')
+          @yield('content')
+          @include('partials.footer')
+        </body>
+      </html>
+
+  components:
+    # Blade components
+    alert:
+      props: ["type", "message"]
+      template: |
+        <div class="alert alert-{{ $type }}">
+          {{ $message }}
+        </div>
+
+# ==========================================
+# LIVEWIRE COMPONENTS → CONFIG
+# ==========================================
+livewire:
+  # app/Http/Livewire/
+  SearchPosts:
+    properties:
+      search: ""
+      posts: []
+
+    mount: |
+      $this->posts = Post::all()
+
+    updated:
+      search: |
+        $this->posts = Post::where('title', 'like', "%{$this->search}%")->get()
+
+    render:
+      view: "livewire.search-posts"
+
+# ==========================================
+# MIDDLEWARE → CONFIG
+# ==========================================
+middleware:
+  # app/Http/Middleware/
+  authenticate:
+    handle: |
+      if (!auth()->check()) {
+        return redirect('/login')
+      }
+
+  admin:
+    handle: |
+      if (!auth()->user()->is_admin) {
+        abort(403)
+      }
+
+  throttle:
+    limit: 60
+    per_minutes: 1
+
+# ==========================================
+# VALIDATION → CONFIG
+# ==========================================
+validation:
+  # app/Http/Requests/
+  StorePostRequest:
+    rules:
+      title: "required|string|max:255|unique:posts"
+      slug: "required|alpha_dash|unique:posts"
+      content: "required|string|min:100"
+      tags: "array"
+      "tags.*": "exists:tags,id"
+
+    messages:
+      "title.required": "A title is required"
+      "content.min": "Post must be at least 100 characters"
+
+# ==========================================
+# MIGRATIONS → CONFIG
+# ==========================================
+migrations:
+  # database/migrations/
+  create_posts_table:
+    up:
+      create: "posts"
+      columns:
+        id: "bigIncrements"
+        title: "string"
+        slug: "string.unique"
+        content: "text"
+        published_at: "timestamp.nullable"
+        timestamps: true
+
+      indexes:
+        - ["slug"]
+        - ["published_at", "created_at"]
+
+# ==========================================
+# QUEUES & JOBS → CONFIG
+# ==========================================
+queues:
+  # app/Jobs/
+  connection: "redis"
+
+  jobs:
+    SendNewsletter:
+      handle: |
+        User::subscribed()->each(function ($user) {
+          Mail::to($user)->send(new NewsletterMail())
+        })
+
+      queue: "emails"
+      tries: 3
+      timeout: 300
+
+    ProcessVideo:
+      handle: "ai://process_uploaded_video"
+      queue: "media"
+
+# ==========================================
+# LARAVEL HORIZON → CONFIG
+# ==========================================
+horizon:
+  # config/horizon.php
+  environments:
+    production:
+      supervisor-1:
+        maxProcesses: 10
+        balanceMaxShift: 1
+        balanceCooldown: 3
+
+  queue_worker_config:
+    memory: 128
+    timeout: 300
+    tries: 3
+
+# ==========================================
+# AUTHENTICATION → CONFIG
+# ==========================================
+auth:
+  # config/auth.php
+  guards:
+    web:
+      driver: "session"
+      provider: "users"
+
+    api:
+      driver: "sanctum"
+      provider: "users"
+
+  providers:
+    users:
+      driver: "eloquent"
+      model: "User"
+
+  passwords:
+    users:
+      provider: "users"
+      expire: 60
+
+# ==========================================
+# EVENTS & LISTENERS → CONFIG
+# ==========================================
+events:
+  # app/Events/ & app/Listeners/
+  PostPublished:
+    listeners:
+      - SendPostNotification
+      - UpdateSearchIndex
+      - InvalidateCache
+
+  UserRegistered:
+    listeners:
+      - SendWelcomeEmail
+      - CreateUserProfile
+      - LogRegistration
+
+# ==========================================
+# SERVICE PROVIDERS → CONFIG
+# ==========================================
+providers:
+  # app/Providers/
+  AppServiceProvider:
+    boot: |
+      View::share('site_name', config('app.name'))
+      Model::preventLazyLoading(!app()->isProduction())
+
+  EventServiceProvider:
+    listen:
+      PostPublished: [SendNotification, UpdateIndex]
+
+# ==========================================
+# ARTISAN COMMANDS → CONFIG
+# ==========================================
+commands:
+  # app/Console/Commands/
+  import:posts:
+    signature: "import:posts {file : CSV file path}"
+    description: "Import posts from CSV"
+    handle: |
+      $csv = Reader::createFromPath($file)
+      foreach ($csv as $row) {
+        Post::create($row)
+      }
+
+# ==========================================
+# BROADCASTING → CONFIG
+# ==========================================
+broadcasting:
+  # config/broadcasting.php
+  driver: "pusher"
+
+  channels:
+    post.{postId}:
+      authorize: "return $user->can('view', Post::find($postId))"
+
+  events:
+    PostUpdated:
+      channel: "post.{$this->post->id}"
+      data: ["title", "content"]
+
+# ==========================================
+# CACHE → CONFIG
+# ==========================================
+cache:
+  # config/cache.php
+  default: "redis"
+
+  stores:
+    redis:
+      driver: "redis"
+      connection: "cache"
+
+  tags:
+    posts: ["posts", "content"]
+
+  remember:
+    popular_posts:
+      key: "popular_posts"
+      ttl: 3600
+      query: "Post::popular()->limit(10)->get()"
+
+# ==========================================
+# THE COMPARISON
+# ==========================================
+# Laravel Project Structure:
+#   my-laravel-app/
+#     composer.json (40+ packages)
+#     app/
+#       Console/
+#         Commands/ (10+ files)
+#       Events/ (10+ files)
+#       Exceptions/
+#       Http/
+#         Controllers/ (20+ files)
+#         Middleware/ (10+ files)
+#         Requests/ (15+ files)
+#         Livewire/ (10+ files)
+#       Jobs/ (10+ files)
+#       Listeners/ (10+ files)
+#       Models/ (15+ files)
+#       Providers/ (5+ files)
+#     bootstrap/
+#     config/ (20+ config files)
+#     database/
+#       migrations/ (20+ files)
+#       seeders/
+#       factories/
+#     resources/
+#       views/ (50+ blade files)
+#       css/
+#       js/
+#     routes/
+#       web.php
+#       api.php
+#       channels.php
+#       console.php
+#     vendor/ (thousands of files)
+#
+# Total: 500+ files, 75,000+ lines
+#
+# DBBasic: This 1 file, ~180 lines
+# ==========================================

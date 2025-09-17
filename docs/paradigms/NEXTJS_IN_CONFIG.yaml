@@ -1,0 +1,296 @@
+# Next.js in Config
+# Everything Next.js does in ~150 lines of YAML
+# 100,000 lines (with node_modules) → 150 lines
+
+name: "Next.js Application"
+framework_replaced: "Next.js + React + Tailwind + Prisma + tRPC"
+
+# ==========================================
+# NEXT.JS PAGES/APP ROUTER → CONFIG
+# ==========================================
+routes:
+  # pages/ or app/ directory
+  "/":
+    component: "HomePage"
+    getStaticProps: "fetch_home_data"
+
+  "/blog/[slug]":
+    component: "BlogPost"
+    getStaticPaths: "get_all_posts"
+    getStaticProps: "fetch_post_by_slug"
+
+  "/dashboard":
+    component: "Dashboard"
+    getServerSideProps: "fetch_user_data"
+    middleware: ["auth"]
+
+  "/api/posts":
+    method: ["GET", "POST"]
+    handler: "handle_posts_api"
+
+# ==========================================
+# REACT COMPONENTS → CONFIG
+# ==========================================
+components:
+  # components/ directory
+  HomePage:
+    props: ["posts", "featured"]
+    render: |
+      <Layout>
+        <Hero />
+        <FeaturedPosts posts={featured} />
+        <PostGrid posts={posts} />
+      </Layout>
+
+  PostCard:
+    props: ["title", "excerpt", "date", "slug"]
+    render: |
+      <Link href={`/blog/${slug}`}>
+        <Card>
+          <h2>{title}</h2>
+          <p>{excerpt}</p>
+          <time>{date}</time>
+        </Card>
+      </Link>
+
+# ==========================================
+# NEXT.JS API ROUTES → CONFIG
+# ==========================================
+api:
+  # pages/api/ or app/api/
+  "/api/auth/[...nextauth]":
+    provider: "NextAuth"
+    providers: ["Google", "GitHub", "Email"]
+
+  "/api/trpc/[trpc]":
+    handler: "tRPC"
+    procedures:
+      posts.list: "SELECT * FROM posts"
+      posts.create: "INSERT INTO posts"
+      user.profile: "SELECT * FROM users WHERE id = ?"
+
+# ==========================================
+# NEXT.JS DATA FETCHING → CONFIG
+# ==========================================
+data_fetching:
+  # getStaticProps, getServerSideProps, etc.
+  fetch_home_data:
+    revalidate: 60  # ISR
+    query: |
+      posts: "SELECT * FROM posts ORDER BY date DESC LIMIT 10"
+      featured: "SELECT * FROM posts WHERE featured = true"
+
+  fetch_post_by_slug:
+    query: "SELECT * FROM posts WHERE slug = ?"
+    notFound: "IF NOT EXISTS"
+
+# ==========================================
+# REACT STATE MANAGEMENT → CONFIG
+# ==========================================
+state:
+  # Redux, Zustand, Jotai - or just config
+  global:
+    user: "null | User"
+    theme: "'light' | 'dark'"
+    cart: "CartItem[]"
+
+  providers:
+    ThemeProvider:
+      value: "theme"
+      toggle: "setTheme(theme === 'light' ? 'dark' : 'light')"
+
+# ==========================================
+# TAILWIND CSS → CONFIG
+# ==========================================
+styles:
+  # tailwind.config.js → config
+  theme:
+    colors:
+      primary: "#0066ff"
+      secondary: "#00ffcc"
+
+    spacing:
+      unit: "0.25rem"
+
+  components:
+    ".btn": "px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark"
+    ".card": "p-6 bg-white shadow rounded-lg"
+
+# ==========================================
+# PRISMA SCHEMA → CONFIG
+# ==========================================
+database:
+  # schema.prisma
+  models:
+    User:
+      fields:
+        id: {type: "String", id: true, default: "cuid()"}
+        email: {type: "String", unique: true}
+        posts: {type: "Post[]", relation: true}
+
+    Post:
+      fields:
+        id: {type: "String", id: true}
+        title: "String"
+        content: "String"
+        published: {type: "Boolean", default: false}
+        author: {type: "User", relation: true}
+
+# ==========================================
+# NEXT.JS MIDDLEWARE → CONFIG
+# ==========================================
+middleware:
+  # middleware.ts
+  matchers:
+    "/dashboard/*": ["requireAuth"]
+    "/admin/*": ["requireAdmin", "logAccess"]
+
+  functions:
+    requireAuth: "redirect('/login') if !user"
+    requireAdmin: "return 403 if user.role !== 'admin'"
+
+# ==========================================
+# NEXT.JS IMAGE OPTIMIZATION → CONFIG
+# ==========================================
+images:
+  # next/image config
+  domains: ["images.example.com", "cdn.example.com"]
+
+  optimization:
+    quality: 75
+    formats: ["image/webp"]
+
+  sizes:
+    thumbnail: "100px"
+    card: "300px"
+    hero: "100vw"
+
+# ==========================================
+# ENVIRONMENT & CONFIG → CONFIG
+# ==========================================
+env:
+  # .env.local
+  public:
+    NEXT_PUBLIC_API_URL: "https://api.example.com"
+    NEXT_PUBLIC_GA_ID: "G-XXXXXXXXXX"
+
+  server:
+    DATABASE_URL: "postgresql://..."
+    JWT_SECRET: "{{ secret }}"
+
+# ==========================================
+# BUILD & DEPLOYMENT → CONFIG
+# ==========================================
+build:
+  # next.config.js
+  output: "standalone"  # or "static" for SSG
+
+  optimization:
+    bundle_analyzer: false
+    remove_console: true
+
+  redirects:
+    "/old-path": "/new-path"
+
+  headers:
+    "/*":
+      X-Frame-Options: "DENY"
+      X-Content-Type-Options: "nosniff"
+
+deployment:
+  platform: "vercel"  # or "netlify", "cloudflare"
+
+  functions:
+    regions: ["iad1"]  # Edge functions
+    maxDuration: 10
+
+# ==========================================
+# WEBPACK/TURBOPACK → CONFIG
+# ==========================================
+bundling:
+  # webpack.config.js - who cares, just make it work
+  mode: "auto"
+
+  aliases:
+    "@": "./src"
+    "@components": "./src/components"
+
+  optimizations:
+    tree_shaking: true
+    code_splitting: true
+    minification: true
+
+# ==========================================
+# TESTING → CONFIG
+# ==========================================
+testing:
+  # jest.config.js, cypress.config.js
+  unit:
+    framework: "jest"
+    coverage: 80
+
+  e2e:
+    framework: "playwright"
+    browsers: ["chrome", "firefox"]
+
+  tests:
+    "HomePage renders": "expect(HomePage).toBeInDocument()"
+    "API returns posts": "expect(api.posts).toHaveLength(10)"
+
+# ==========================================
+# THE COMPARISON
+# ==========================================
+# Next.js Project Structure:
+#   my-app/
+#     package.json (50+ dependencies)
+#     next.config.js
+#     tailwind.config.js
+#     tsconfig.json
+#     .env.local
+#     prisma/
+#       schema.prisma
+#     src/
+#       app/ (or pages/)
+#         layout.tsx
+#         page.tsx
+#         blog/
+#           [slug]/
+#             page.tsx
+#         api/
+#           posts/
+#             route.ts
+#       components/
+#         (50+ component files)
+#       lib/
+#         (utility files)
+#       styles/
+#         globals.css
+#     node_modules/
+#       (100,000+ files, 500MB+)
+#
+# Total: 200+ files, 50,000+ lines (not counting node_modules)
+#
+# DBBasic: This 1 file, ~150 lines
+# ==========================================
+
+# ==========================================
+# THE REAL KICKER
+# ==========================================
+# Next.js requires understanding:
+# - React
+# - JSX/TSX
+# - Webpack/Turbopack
+# - Node.js
+# - npm/yarn/pnpm
+# - CSS-in-JS or Tailwind
+# - REST or GraphQL or tRPC
+# - Prisma or another ORM
+# - Vercel deployment specifics
+# - Edge vs Node runtime
+# - Client vs Server components
+# - Hydration issues
+# - Bundle optimization
+#
+# DBBasic requires understanding:
+# - YAML
+# ==========================================

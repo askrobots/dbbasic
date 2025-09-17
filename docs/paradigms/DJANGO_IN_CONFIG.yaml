@@ -1,0 +1,290 @@
+# Django in Config
+# Everything Django does in ~200 lines of YAML
+# 50,000 lines → 200 lines
+
+name: "Django Application"
+framework_replaced: "Django + DRF + Celery + Channels"
+
+# ==========================================
+# DJANGO MODELS → CONFIG
+# ==========================================
+model:
+  # models.py
+  User:
+    extends: "AbstractUser"  # Django's user model
+    fields:
+      email: {type: "email", unique: true}
+      is_premium: {type: "boolean", default: false}
+
+  Post:
+    fields:
+      title: {type: "CharField", max_length: 200}
+      slug: {type: "SlugField", unique: true}
+      content: {type: "TextField"}
+      author: {type: "ForeignKey", to: "User"}
+      created_at: {type: "DateTimeField", auto_now_add: true}
+
+    class_meta:
+      ordering: ["-created_at"]
+      verbose_name_plural: "Posts"
+
+# ==========================================
+# DJANGO ADMIN → CONFIG
+# ==========================================
+admin:
+  # admin.py
+  register: "all"
+
+  customization:
+    Post:
+      list_display: ["title", "author", "created_at"]
+      list_filter: ["created_at", "author"]
+      search_fields: ["title", "content"]
+      prepopulated_fields: {slug: ["title"]}
+
+  site_header: "My Django App Admin"
+  site_title: "Admin Portal"
+
+# ==========================================
+# DJANGO VIEWS → CONFIG
+# ==========================================
+views:
+  # views.py / viewsets.py
+  PostViewSet:
+    type: "ModelViewSet"
+    queryset: "Post.objects.all()"
+    serializer: "PostSerializer"
+    permission_classes: ["IsAuthenticatedOrReadOnly"]
+    filter_backends: ["SearchFilter", "OrderingFilter"]
+    search_fields: ["title", "content"]
+
+  home_view:
+    template: "home.html"
+    context:
+      recent_posts: "Post.objects.all()[:5]"
+      user_count: "User.objects.count()"
+
+# ==========================================
+# DJANGO URLS → CONFIG
+# ==========================================
+urls:
+  # urls.py
+  patterns:
+    "": "home_view"
+    "admin/": "admin.site.urls"
+    "api/": "include('api.urls')"
+    "posts/<slug:slug>/": "PostDetailView"
+
+  api_router:
+    "posts": "PostViewSet"
+    "users": "UserViewSet"
+
+# ==========================================
+# DJANGO REST FRAMEWORK → CONFIG
+# ==========================================
+rest_framework:
+  # serializers.py
+  serializers:
+    PostSerializer:
+      model: "Post"
+      fields: ["id", "title", "slug", "content", "author"]
+
+    UserSerializer:
+      model: "User"
+      fields: ["id", "username", "email"]
+      read_only_fields: ["id"]
+
+  # settings.py DRF config
+  default_authentication: ["TokenAuthentication", "SessionAuthentication"]
+  default_permission: ["IsAuthenticated"]
+  pagination_class: "PageNumberPagination"
+  page_size: 20
+
+# ==========================================
+# DJANGO MIDDLEWARE → CONFIG
+# ==========================================
+middleware:
+  # settings.py MIDDLEWARE
+  - SecurityMiddleware
+  - SessionMiddleware
+  - CommonMiddleware
+  - CsrfViewMiddleware
+  - AuthenticationMiddleware
+  - MessageMiddleware
+
+# ==========================================
+# CELERY TASKS → CONFIG
+# ==========================================
+tasks:
+  # tasks.py
+  send_welcome_email:
+    queue: "email"
+    task: "email.send_welcome"
+    retry: 3
+    retry_delay: 60
+
+  generate_report:
+    schedule: "cron(0 0 * * 1)"  # Weekly
+    task: "reports.generate_weekly"
+
+  celery_beat_schedule:
+    cleanup_old_sessions:
+      task: "django.cleanup_sessions"
+      schedule: "interval(hours=24)"
+
+# ==========================================
+# DJANGO CHANNELS → CONFIG
+# ==========================================
+channels:
+  # consumers.py / routing.py
+  websocket_routes:
+    "/ws/chat/": "ChatConsumer"
+    "/ws/notifications/": "NotificationConsumer"
+
+  ChatConsumer:
+    on_connect: "accept_connection"
+    on_receive: "broadcast_message"
+    groups: ["chat_room"]
+
+# ==========================================
+# DJANGO FORMS → CONFIG
+# ==========================================
+forms:
+  # forms.py
+  PostForm:
+    model: "Post"
+    fields: ["title", "content"]
+    widgets:
+      content: "Textarea(attrs={'rows': 10})"
+
+  ContactForm:
+    fields:
+      name: {type: "CharField", max_length: 100}
+      email: {type: "EmailField"}
+      message: {type: "CharField", widget: "Textarea"}
+
+# ==========================================
+# DJANGO TEMPLATES → CONFIG
+# ==========================================
+templates:
+  # templates/
+  extends: "base.html"
+
+  blocks:
+    title: "{{ post.title }} | My Site"
+    content: |
+      <h1>{{ post.title }}</h1>
+      <p>By {{ post.author }} on {{ post.created_at|date }}</p>
+      <div>{{ post.content|safe }}</div>
+
+  filters:
+    date: "F j, Y"
+    truncatewords: 50
+
+# ==========================================
+# DJANGO SETTINGS → CONFIG
+# ==========================================
+settings:
+  # settings.py
+  debug: false
+  allowed_hosts: ["example.com"]
+
+  databases:
+    default:
+      engine: "postgresql"
+      name: "myapp"
+
+  static:
+    url: "/static/"
+    root: "staticfiles"
+
+  media:
+    url: "/media/"
+    root: "media"
+
+  email:
+    backend: "smtp"
+    host: "smtp.gmail.com"
+    port: 587
+
+  cache:
+    backend: "redis"
+    location: "redis://127.0.0.1:6379/1"
+
+# ==========================================
+# DJANGO MIGRATIONS → CONFIG
+# ==========================================
+migrations:
+  # Auto-generated from model changes
+  auto_generate: true
+
+  # Custom migrations
+  custom:
+    add_user_tier:
+      operations:
+        - "AddField('User', 'tier', CharField(max_length=10))"
+
+# ==========================================
+# DJANGO SIGNALS → CONFIG
+# ==========================================
+signals:
+  # signals.py
+  post_save:
+    User:
+      - send_welcome_email
+      - create_user_profile
+
+  pre_delete:
+    Post:
+      - cleanup_related_files
+
+# ==========================================
+# DJANGO AUTH → CONFIG
+# ==========================================
+auth:
+  # Django's auth system
+  authentication_backends:
+    - "ModelBackend"  # Username/password
+    - "OAuth2Backend"  # Social login
+
+  social_auth:
+    google:
+      client_id: "{{ env.GOOGLE_CLIENT_ID }}"
+      scope: ["email", "profile"]
+
+  password_validators:
+    - MinimumLengthValidator: 8
+    - CommonPasswordValidator
+    - NumericPasswordValidator
+
+# ==========================================
+# THE COMPARISON
+# ==========================================
+# Django Project Structure:
+#   myproject/
+#     manage.py
+#     myproject/
+#       __init__.py
+#       settings.py (300+ lines)
+#       urls.py (50+ lines)
+#       wsgi.py
+#       asgi.py
+#     myapp/
+#       __init__.py
+#       models.py (200+ lines)
+#       views.py (500+ lines)
+#       urls.py (50+ lines)
+#       admin.py (100+ lines)
+#       forms.py (150+ lines)
+#       serializers.py (100+ lines)
+#       tasks.py (100+ lines)
+#       signals.py (50+ lines)
+#       migrations/ (20+ files)
+#       templates/ (10+ files)
+#       static/ (CSS/JS files)
+#     requirements.txt (30+ packages)
+#
+# Total: 50+ files, 10,000+ lines
+#
+# DBBasic: This 1 file, ~200 lines
+# ==========================================

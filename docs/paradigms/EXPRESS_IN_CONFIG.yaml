@@ -1,0 +1,291 @@
+# Express.js in Config
+# Everything Express does in ~100 lines of YAML
+# 10,000 lines + node_modules → 100 lines
+
+name: "Express Application"
+framework_replaced: "Express + MongoDB + Passport + Socket.io + Bull"
+
+# ==========================================
+# EXPRESS ROUTES → CONFIG
+# ==========================================
+routes:
+  # app.js routes
+  middleware:
+    - cors
+    - helmet
+    - morgan: "dev"
+    - express.json
+    - express.urlencoded: {extended: true}
+
+  GET:
+    "/":
+      handler: "res.render('home', {title: 'Welcome'})"
+
+    "/api/users":
+      middleware: ["authenticate"]
+      handler: "userController.getAll"
+
+    "/api/users/:id":
+      handler: "userController.getById"
+      cache: 300
+
+  POST:
+    "/api/users":
+      middleware: ["authenticate", "admin"]
+      validate:
+        body:
+          email: "email"
+          password: "min:8"
+      handler: "userController.create"
+
+    "/api/login":
+      handler: "authController.login"
+      rate_limit: "5 per minute"
+
+  PUT:
+    "/api/users/:id":
+      middleware: ["authenticate", "ownerOrAdmin"]
+      handler: "userController.update"
+
+  DELETE:
+    "/api/users/:id":
+      middleware: ["authenticate", "admin"]
+      handler: "userController.delete"
+
+# ==========================================
+# MONGODB MODELS → CONFIG
+# ==========================================
+models:
+  # Mongoose schemas
+  User:
+    schema:
+      email: {type: "String", required: true, unique: true}
+      password: {type: "String", required: true}
+      name: "String"
+      role: {type: "String", enum: ["user", "admin"], default: "user"}
+      createdAt: {type: "Date", default: "Date.now"}
+
+    methods:
+      comparePassword: "bcrypt.compare"
+
+    virtuals:
+      fullName: "return `${this.firstName} ${this.lastName}`"
+
+    hooks:
+      pre_save: "hash password if modified"
+
+  Post:
+    schema:
+      title: {type: "String", required: true}
+      content: "String"
+      author: {type: "ObjectId", ref: "User"}
+      tags: ["String"]
+      published: {type: "Boolean", default: false}
+
+    indexes:
+      - {title: "text", content: "text"}
+      - {author: 1, createdAt: -1}
+
+# ==========================================
+# MIDDLEWARE → CONFIG
+# ==========================================
+middleware:
+  authenticate:
+    type: "jwt"
+    secret: "${JWT_SECRET}"
+    handler: |
+      Verify JWT token
+      Set req.user
+      Next() or 401
+
+  admin:
+    handler: |
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({error: 'Forbidden'})
+      }
+      next()
+
+  error_handler:
+    handler: |
+      Log error
+      Send appropriate response
+      Don't leak sensitive info
+
+# ==========================================
+# PASSPORT AUTHENTICATION → CONFIG
+# ==========================================
+auth:
+  strategies:
+    local:
+      username_field: "email"
+      password_field: "password"
+      verify: "User.findOne + bcrypt.compare"
+
+    jwt:
+      secret: "${JWT_SECRET}"
+      extract_from: "header.authorization"
+
+    google:
+      client_id: "${GOOGLE_CLIENT_ID}"
+      client_secret: "${GOOGLE_CLIENT_SECRET}"
+      callback_url: "/auth/google/callback"
+
+# ==========================================
+# SOCKET.IO REALTIME → CONFIG
+# ==========================================
+websocket:
+  # socket.io setup
+  cors:
+    origin: "http://localhost:3000"
+    credentials: true
+
+  namespaces:
+    "/chat":
+      middleware: ["authenticate"]
+
+      events:
+        connection:
+          - "socket.join(user.room)"
+          - "socket.emit('welcome')"
+
+        message:
+          - "validate message"
+          - "broadcast to room"
+          - "save to database"
+
+        disconnect:
+          - "notify room"
+          - "cleanup"
+
+# ==========================================
+# BACKGROUND JOBS (BULL) → CONFIG
+# ==========================================
+queues:
+  # Bull queue configuration
+  email:
+    redis: "redis://localhost:6379"
+
+    jobs:
+      sendWelcomeEmail:
+        process: "sendEmail(user.email, 'welcome')"
+        attempts: 3
+        backoff: "exponential"
+
+      sendNewsletter:
+        process: "batchSendEmails"
+        cron: "0 9 * * MON"
+
+  image_processing:
+    jobs:
+      generateThumbnail:
+        process: "sharp.resize(200, 200)"
+        concurrency: 5
+
+# ==========================================
+# DATABASE & SESSIONS → CONFIG
+# ==========================================
+database:
+  mongodb:
+    uri: "mongodb://localhost:27017/myapp"
+    options:
+      useNewUrlParser: true
+      useUnifiedTopology: true
+
+  redis:
+    host: "localhost"
+    port: 6379
+
+  sessions:
+    store: "redis"
+    secret: "${SESSION_SECRET}"
+    ttl: 86400
+
+# ==========================================
+# FILE UPLOADS → CONFIG
+# ==========================================
+uploads:
+  # Multer configuration
+  storage: "disk"  # or "s3"
+
+  limits:
+    file_size: "10MB"
+    files: 5
+
+  allowed_types: ["image/jpeg", "image/png", "application/pdf"]
+
+  destinations:
+    avatars: "/uploads/avatars"
+    documents: "/uploads/docs"
+
+# ==========================================
+# VALIDATION → CONFIG
+# ==========================================
+validation:
+  # express-validator
+  schemas:
+    createUser:
+      email: "isEmail"
+      password: "isLength({min: 8})"
+      age: "isInt({min: 18, max: 120})"
+
+    createPost:
+      title: "notEmpty"
+      content: "isLength({min: 10})"
+      tags: "isArray"
+
+# ==========================================
+# ERROR HANDLING → CONFIG
+# ==========================================
+errors:
+  handlers:
+    ValidationError:
+      status: 400
+      message: "Validation failed"
+
+    UnauthorizedError:
+      status: 401
+      message: "Authentication required"
+
+    NotFoundError:
+      status: 404
+      message: "Resource not found"
+
+  logging:
+    service: "winston"
+    level: "info"
+    transport: ["console", "file"]
+
+# ==========================================
+# THE COMPARISON
+# ==========================================
+# Express Project Structure:
+#   my-express-app/
+#     package.json (50+ dependencies)
+#     app.js (200+ lines)
+#     routes/
+#       users.js (300+ lines)
+#       posts.js (250+ lines)
+#       auth.js (200+ lines)
+#     controllers/ (10+ files, 1500+ lines)
+#     models/ (10+ files, 800+ lines)
+#     middleware/ (8+ files, 400+ lines)
+#     validators/ (5+ files, 300+ lines)
+#     services/ (10+ files, 1000+ lines)
+#     utils/ (5+ files, 500+ lines)
+#     config/
+#       database.js
+#       passport.js
+#       redis.js
+#     node_modules/ (50,000+ files, 200MB+)
+#
+# Total: 100+ files, 10,000+ lines (plus node_modules chaos)
+#
+# DBBasic: This 1 file, ~100 lines
+# ==========================================
+
+# BONUS: No more:
+# - "Cannot find module"
+# - "npm audit: 47 vulnerabilities"
+# - "node_modules is 800MB"
+# - Callback hell or Promise chains
+# - Figuring out which of 20 middleware order matters
