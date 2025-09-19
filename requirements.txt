@@ -20,6 +20,21 @@ python-dotenv>=1.0.0
 pandas>=2.0.0  # For compatibility
 numpy>=1.24.0
 
+# File Operations
+aiofiles>=23.0.0
+
+# Web Testing
+selenium>=4.15.0
+
+# Monitoring & Watchdog
+watchdog>=3.0.0
+
+# HTTP Requests
+requests>=2.31.0
+
+# Background Task Processing
+websockets>=12.0
+
 # Optional: AI Services
 # openai>=1.0.0  # Uncomment for AI service generation
 # anthropic>=0.5.0  # Uncomment for Claude integration

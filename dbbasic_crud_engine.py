@@ -20,7 +20,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 import duckdb
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File, Header
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -494,12 +494,17 @@ class CRUDEngine:
 
         # API routes
         @self.app.get("/api/{resource_name}")
-        async def api_list_records(resource_name: str, limit: int = Query(25), offset: int = Query(0)):
+        async def api_list_records(resource_name: str, limit: int = Query(25), offset: int = Query(0), x_user: str = Header(None)):
             """Get records for a resource"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
 
             resource = self.resources[resource_name]
+
+            # Check read permission
+            if not self._check_permission(resource, 'read', x_user):
+                raise HTTPException(403, "Permission denied")
+
             try:
                 result = resource.db.execute(
                     f"SELECT * FROM {resource_name} LIMIT {limit} OFFSET {offset}"
@@ -514,12 +519,17 @@ class CRUDEngine:
                 raise HTTPException(500, f"Database error: {e}")
 
         @self.app.get("/api/{resource_name}/{record_id}")
-        async def api_get_record(resource_name: str, record_id: str):
+        async def api_get_record(resource_name: str, record_id: str, x_user: str = Header(None)):
             """Get single record"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
 
             resource = self.resources[resource_name]
+
+            # Check read permission
+            if not self._check_permission(resource, 'read', x_user):
+                raise HTTPException(403, "Permission denied")
+
             try:
                 result = resource.db.execute(
                     f"SELECT * FROM {resource_name} WHERE id = ?", [record_id]
@@ -534,15 +544,19 @@ class CRUDEngine:
                 raise HTTPException(500, f"Database error: {e}")
 
         @self.app.post("/api/{resource_name}")
-        async def api_create_record(resource_name: str, data: dict):
+        async def api_create_record(resource_name: str, data: dict, x_user: str = Header(None)):
             """Create new record"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
 
             resource = self.resources[resource_name]
 
+            # Check create permission
+            if not self._check_permission(resource, 'create', x_user):
+                raise HTTPException(403, "Permission denied")
+
             # Auto-populate magic fields
-            data = self._populate_magic_fields(resource, data, 'create')
+            data = self._populate_magic_fields(resource, data, 'create', x_user)
 
             # Execute hooks
             if 'before_create' in resource.hooks:
@@ -588,7 +602,7 @@ class CRUDEngine:
                 raise HTTPException(500, f"Database error: {e}")
 
         @self.app.put("/api/{resource_name}/{record_id}")
-        async def api_update_record(resource_name: str, record_id: int, data: dict):
+        async def api_update_record(resource_name: str, record_id: int, data: dict, x_user: str = Header(None)):
             """Update existing record"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
@@ -600,8 +614,16 @@ class CRUDEngine:
             if not existing:
                 raise HTTPException(404, f"Record {record_id} not found")
 
+            # Convert to dict for permission check
+            columns = [desc[0] for desc in resource.db.description]
+            existing_dict = dict(zip(columns, existing))
+
+            # Check update permission
+            if not self._check_permission(resource, 'update', x_user, existing_dict):
+                raise HTTPException(403, "Permission denied")
+
             # Auto-populate magic fields for update
-            data = self._populate_magic_fields(resource, data, 'update')
+            data = self._populate_magic_fields(resource, data, 'update', x_user)
 
             # Execute hooks
             if 'before_update' in resource.hooks:
@@ -636,7 +658,7 @@ class CRUDEngine:
                 raise HTTPException(500, f"Error updating record: {e}")
 
         @self.app.delete("/api/{resource_name}/{record_id}")
-        async def api_delete_record(resource_name: str, record_id: int):
+        async def api_delete_record(resource_name: str, record_id: int, x_user: str = Header(None)):
             """Delete record"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
@@ -648,10 +670,17 @@ class CRUDEngine:
             if not existing:
                 raise HTTPException(404, f"Record {record_id} not found")
 
+            # Convert to dict for permission check
+            columns = [desc[0] for desc in resource.db.description]
+            existing_dict = dict(zip(columns, existing))
+
+            # Check delete permission
+            if not self._check_permission(resource, 'delete', x_user, existing_dict):
+                raise HTTPException(403, "Permission denied")
+
             # Execute hooks
             if 'before_delete' in resource.hooks:
-                existing_data = dict(zip([desc[0] for desc in resource.db.description], existing))
-                await self._execute_hook(resource.hooks['before_delete'], existing_data)
+                await self._execute_hook(resource.hooks['before_delete'], existing_dict)
 
             try:
                 # Execute the delete
@@ -994,6 +1023,7 @@ class CRUDEngine:
         current_user = user_id or "system"
 
         # Check each field in the resource configuration
+        # Fields are stored as a dict with field names as keys
         for field_name, field_config in resource.fields.items():
             # Handle auto_now_add fields (only on create)
             if operation == 'create' and field_config.get('auto_now_add'):
@@ -1014,6 +1044,47 @@ class CRUDEngine:
                 data[field_name] = current_user
 
         return data
+
+    def _check_permission(self, resource: 'CRUDResource', operation: str, user_id: str = None, record: dict = None) -> bool:
+        """Check if user has permission for the operation based on config"""
+        # No permissions config means allow all
+        if 'permissions' not in resource.config:
+            return True
+
+        permissions = resource.permissions
+        permission_rule = permissions.get(operation, 'public')
+
+        # Public permission - anyone can access
+        if permission_rule == 'public':
+            return True
+
+        # Authenticated permission - must have a user ID
+        if permission_rule == 'authenticated':
+            return user_id is not None
+
+        # Owner or admin permission
+        if permission_rule == 'owner_or_admin':
+            if not record:
+                return False
+            # Check if user is owner (look for created_by field)
+            owner_field = None
+            for field_name, field_config in resource.fields.items():
+                if field_config.get('auto_user_add'):
+                    owner_field = field_name
+                    break
+            if owner_field and record.get(owner_field) == user_id:
+                return True
+            # Check if user is admin (simplified - in real app would check user roles)
+            if user_id and user_id.startswith('admin'):
+                return True
+            return False
+
+        # Admin only permission
+        if permission_rule == 'admin_only':
+            return user_id and user_id.startswith('admin')
+
+        # Default deny if unknown permission rule
+        return False
 
     async def _execute_hook(self, hook_name: str, data: dict):
         """Execute a hook by calling the corresponding service"""

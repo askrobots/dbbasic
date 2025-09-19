@@ -53,4 +53,5 @@ sessions/
 
 # But keep example data
 !examples/**/*.parquet
-!examples/**/*.db
+!examples/**/*.db*.db.wal
+*.db-shm

@@ -65,11 +65,57 @@ git clone https://github.com/askrobots/dbbasic
 cd dbbasic
 pip install -r requirements.txt
 
-# Start the server
-python dbbasic_server.py
+# Start all services (each in separate terminal)
+python core/server.py              # Main server - Port 8000
+python core/ai_services.py         # AI Services - Port 8002
+python dbbasic_ai_service_builder.py  # AI Builder - Port 8003
+python realtime_monitor.py         # Monitor - Port 8004
+python dbbasic_crud_engine.py      # CRUD Engine - Port 8005
+python test_runner_web.py          # Test Runner - Port 8006
 
-# Open browser
+# Open browser to main dashboard
 http://localhost:8000/static/mockups.html
+```
+
+## 🌐 Service Architecture
+
+DBBasic runs as a microservices architecture with each service on a dedicated port:
+
+| Port | Service | Purpose | Web Interface |
+|------|---------|---------|---------------|
+| **8000** | Main Server | Core DBBasic engine, static files, mockups | ✅ Dashboard |
+| **8002** | AI Services | Core AI service endpoints for business logic | ❌ API only |
+| **8003** | AI Service Builder | Generate new AI services from descriptions | ✅ Builder UI |
+| **8004** | Real-time Monitor | Monitor system activity and data flows | ✅ Monitor UI |
+| **8005** | CRUD Engine | Config-driven database operations and forms | ✅ Data Management |
+| **8006** | Test Runner | Web-based testing framework with live results | ✅ Test Interface |
+
+### Starting Individual Services
+
+```bash
+# Core server (static files, mockups, main API)
+python core/server.py
+# Access: http://localhost:8000
+
+# AI service builder (create services from descriptions)
+python dbbasic_ai_service_builder.py
+# Access: http://localhost:8003
+
+# Real-time activity monitor
+python realtime_monitor.py
+# Access: http://localhost:8004
+
+# Config-driven CRUD operations
+python dbbasic_crud_engine.py
+# Access: http://localhost:8005
+
+# Web-based test runner
+python test_runner_web.py
+# Access: http://localhost:8006
+
+# Core AI services (no web interface)
+python core/ai_services.py
+# API only: http://localhost:8002
 ```
 
 ## 💡 The Revolution
