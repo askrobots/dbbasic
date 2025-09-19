@@ -1,0 +1,44 @@
+# DBBasic CRUD Config - Simple Customers (No Hooks)
+resource: simple_customers
+database: simple_customers.db
+
+fields:
+  id:
+    type: primary_key
+  name:
+    type: string
+    required: true
+    searchable: true
+    max_length: 100
+  email:
+    type: email
+    unique: true
+    searchable: true
+    required: true
+  phone:
+    type: string
+    max_length: 20
+  status:
+    type: select
+    options: [active, inactive, pending]
+    default: active
+  created_at:
+    type: timestamp
+    auto_now_add: true
+
+interface:
+  list_display: [name, email, status, created_at]
+  search_fields: [name, email]
+  filters: [status, created_at]
+  per_page: 25
+
+permissions:
+  create: authenticated
+  read: public
+  update: owner_or_admin
+  delete: admin_only
+
+api:
+  base_path: /api/simple_customers
+  enable_bulk: true
+  enable_export: true
