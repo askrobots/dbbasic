@@ -1,0 +1,832 @@
+#!/usr/bin/env python3
+"""
+DBBasic CRUD Engine - Config-Driven CRUD Interface Generator
+
+Converts YAML configurations into live, real-time CRUD interfaces
+with WebSocket updates, DuckDB performance, and AI Service Builder integration.
+"""
+
+import os
+import asyncio
+import yaml
+import json
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from pathlib import Path
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+import duckdb
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+import requests
+import aiofiles
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class CRUDConfigHandler(FileSystemEventHandler):
+    """Watches for CRUD config file changes and triggers reloads"""
+
+    def __init__(self, crud_engine):
+        self.crud_engine = crud_engine
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+        if event.src_path.endswith('_crud.yaml'):
+            logger.info(f"🔄 CRUD config changed: {event.src_path}")
+            asyncio.create_task(self.crud_engine.reload_config(event.src_path))
+
+class CRUDResource:
+    """Represents a single CRUD resource with its configuration"""
+
+    def __init__(self, config_path: str, config: Dict[str, Any]):
+        self.config_path = config_path
+        self.config = config
+        self.resource_name = config['resource']
+        self.database_path = config.get('database', f"{self.resource_name}.db")
+        self.fields = config['fields']
+        self.interface = config.get('interface', {})
+        self.hooks = config.get('hooks', {})
+        self.permissions = config.get('permissions', {})
+        self.api = config.get('api', {})
+
+        # Initialize database connection
+        self.db = duckdb.connect(self.database_path)
+        self._create_table()
+
+    def _create_table(self):
+        """Create database table based on field configuration"""
+        fields_sql = []
+
+        for field_name, field_config in self.fields.items():
+            field_type = field_config.get('type', 'string')
+
+            # Map field types to SQL types
+            sql_type = {
+                'primary_key': 'INTEGER PRIMARY KEY',
+                'string': f"VARCHAR({field_config.get('max_length', 255)})",
+                'email': 'VARCHAR(255)',
+                'decimal': 'DECIMAL(10,2)',
+                'integer': 'INTEGER',
+                'timestamp': 'TIMESTAMP',
+                'boolean': 'BOOLEAN',
+                'text': 'TEXT',
+                'select': 'VARCHAR(50)'
+            }.get(field_type, 'VARCHAR(255)')
+
+            # Add constraints
+            constraints = []
+            if field_config.get('required', False) and field_type != 'primary_key':
+                constraints.append('NOT NULL')
+            if field_config.get('unique', False):
+                constraints.append('UNIQUE')
+            if 'default' in field_config:
+                default_val = field_config['default']
+                if isinstance(default_val, str):
+                    constraints.append(f"DEFAULT '{default_val}'")
+                else:
+                    constraints.append(f"DEFAULT {default_val}")
+
+            constraint_str = ' ' + ' '.join(constraints) if constraints else ''
+            fields_sql.append(f"{field_name} {sql_type}{constraint_str}")
+
+        create_sql = f"""
+        CREATE TABLE IF NOT EXISTS {self.resource_name} (
+            {', '.join(fields_sql)}
+        )
+        """
+
+        try:
+            self.db.execute(create_sql)
+            logger.info(f"✅ Table '{self.resource_name}' created/verified")
+        except Exception as e:
+            logger.error(f"❌ Error creating table '{self.resource_name}': {e}")
+
+    def generate_list_html(self) -> str:
+        """Generate HTML for list view"""
+        list_display = self.interface.get('list_display', list(self.fields.keys())[:5])
+        search_fields = self.interface.get('search_fields', [])
+        filters = self.interface.get('filters', [])
+
+        # Generate search form
+        search_form = ""
+        if search_fields:
+            search_inputs = [f'<input type="text" name="search_{field}" placeholder="Search {field}" class="search-input">'
+                           for field in search_fields]
+            search_form = f"""
+            <div class="search-bar">
+                <form class="search-form">
+                    {' '.join(search_inputs)}
+                    <button type="submit" class="search-btn">Search</button>
+                </form>
+            </div>
+            """
+
+        # Generate filter form
+        filter_form = ""
+        if filters:
+            filter_inputs = []
+            for filter_field in filters:
+                field_config = self.fields.get(filter_field, {})
+                if field_config.get('type') == 'select':
+                    options = field_config.get('options', [])
+                    option_html = ''.join([f'<option value="{opt}">{opt}</option>' for opt in options])
+                    filter_inputs.append(f"""
+                    <select name="filter_{filter_field}" class="filter-select">
+                        <option value="">All {filter_field}</option>
+                        {option_html}
+                    </select>
+                    """)
+                else:
+                    filter_inputs.append(f'<input type="text" name="filter_{filter_field}" placeholder="Filter {filter_field}" class="filter-input">')
+
+            if filter_inputs:
+                filter_form = f"""
+                <div class="filter-bar">
+                    <form class="filter-form">
+                        {' '.join(filter_inputs)}
+                        <button type="submit" class="filter-btn">Filter</button>
+                    </form>
+                </div>
+                """
+
+        # Generate table headers
+        headers = [f'<th class="sortable" data-field="{field}">{field.replace("_", " ").title()}</th>'
+                  for field in list_display]
+        headers.append('<th>Actions</th>')
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{self.resource_name.title()} - DBBasic CRUD</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+                .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
+                .title {{ font-size: 24px; font-weight: bold; color: #333; }}
+                .add-btn {{ background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }}
+                .add-btn:hover {{ background: #0056b3; }}
+                .search-bar, .filter-bar {{ margin-bottom: 20px; }}
+                .search-form, .filter-form {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+                .search-input, .filter-input, .filter-select {{ padding: 8px; border: 1px solid #ddd; border-radius: 4px; }}
+                .search-btn, .filter-btn {{ background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }}
+                .search-btn:hover, .filter-btn:hover {{ background: #218838; }}
+                .table-container {{ overflow-x: auto; }}
+                table {{ width: 100%; border-collapse: collapse; }}
+                th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+                th {{ background: #f8f9fa; font-weight: 600; cursor: pointer; user-select: none; }}
+                th:hover {{ background: #e9ecef; }}
+                tr:hover {{ background: #f8f9fa; }}
+                .actions {{ display: flex; gap: 8px; }}
+                .edit-btn, .delete-btn {{ padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }}
+                .edit-btn {{ background: #ffc107; color: #212529; }}
+                .delete-btn {{ background: #dc3545; color: white; }}
+                .edit-btn:hover {{ background: #e0a800; }}
+                .delete-btn:hover {{ background: #c82333; }}
+                .status {{ font-weight: 500; padding: 4px 8px; border-radius: 12px; font-size: 12px; }}
+                .status.active {{ background: #d4edda; color: #155724; }}
+                .status.inactive {{ background: #f8d7da; color: #721c24; }}
+                .status.pending {{ background: #fff3cd; color: #856404; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="title">{self.resource_name.title()} Management</div>
+                    <button class="add-btn" onclick="createNew()">+ Add {self.resource_name.title()}</button>
+                </div>
+
+                {search_form}
+                {filter_form}
+
+                <div class="table-container">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>{''.join(headers)}</tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Data will be loaded via WebSocket -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <script>
+                const resourceName = '{self.resource_name}';
+                const ws = new WebSocket('ws://localhost:8005/ws/{self.resource_name}');
+
+                ws.onmessage = function(event) {{
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'data_update') {{
+                        updateTable(data.records);
+                    }}
+                }};
+
+                function updateTable(records) {{
+                    const tbody = document.getElementById('tableBody');
+                    tbody.innerHTML = records.map(record => `
+                        <tr>
+                            {' '.join([f"<td>${{record.{field} || ''}}</td>" for field in list_display])}
+                            <td class="actions">
+                                <button class="edit-btn" onclick="editRecord(${{record.id}})">Edit</button>
+                                <button class="delete-btn" onclick="deleteRecord(${{record.id}})">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }}
+
+                function createNew() {{
+                    window.location.href = `/{self.resource_name}/create`;
+                }}
+
+                function editRecord(id) {{
+                    window.location.href = `/{self.resource_name}/${{id}}/edit`;
+                }}
+
+                function deleteRecord(id) {{
+                    if (confirm('Are you sure you want to delete this record?')) {{
+                        fetch(`/api/{self.resource_name}/${{id}}`, {{ method: 'DELETE' }})
+                            .then(() => location.reload());
+                    }}
+                }}
+
+                // Request initial data
+                ws.onopen = function() {{
+                    ws.send(JSON.stringify({{ type: 'request_data' }}));
+                }};
+            </script>
+        </body>
+        </html>
+        """
+
+    def generate_form_html(self, record_id: Optional[str] = None) -> str:
+        """Generate HTML for create/edit form"""
+        is_edit = record_id is not None
+        title = f"Edit {self.resource_name.title()}" if is_edit else f"Create {self.resource_name.title()}"
+
+        # Generate form fields
+        form_fields = []
+        for field_name, field_config in self.fields.items():
+            if field_config.get('type') == 'primary_key' or field_config.get('auto_now', False) or field_config.get('auto_now_add', False):
+                continue  # Skip auto fields
+
+            field_type = field_config.get('type', 'string')
+            required = ' required' if field_config.get('required', False) else ''
+
+            if field_type == 'select':
+                options = field_config.get('options', [])
+                option_html = ''.join([f'<option value="{opt}">{opt}</option>' for opt in options])
+                form_fields.append(f"""
+                <div class="form-group">
+                    <label for="{field_name}">{field_name.replace('_', ' ').title()}</label>
+                    <select id="{field_name}" name="{field_name}"{required}>
+                        <option value="">Select {field_name}</option>
+                        {option_html}
+                    </select>
+                </div>
+                """)
+            elif field_type in ['text']:
+                form_fields.append(f"""
+                <div class="form-group">
+                    <label for="{field_name}">{field_name.replace('_', ' ').title()}</label>
+                    <textarea id="{field_name}" name="{field_name}"{required}></textarea>
+                </div>
+                """)
+            else:
+                input_type = {
+                    'email': 'email',
+                    'decimal': 'number',
+                    'integer': 'number'
+                }.get(field_type, 'text')
+
+                step = ' step="0.01"' if field_type == 'decimal' else ''
+                min_val = f' min="{field_config["min"]}"' if 'min' in field_config else ''
+                max_val = f' max="{field_config["max"]}"' if 'max' in field_config else ''
+                max_length = f' maxlength="{field_config["max_length"]}"' if 'max_length' in field_config else ''
+
+                form_fields.append(f"""
+                <div class="form-group">
+                    <label for="{field_name}">{field_name.replace('_', ' ').title()}</label>
+                    <input type="{input_type}" id="{field_name}" name="{field_name}"{required}{step}{min_val}{max_val}{max_length}>
+                </div>
+                """)
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{title} - DBBasic CRUD</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
+                .title {{ font-size: 24px; font-weight: bold; color: #333; }}
+                .back-btn {{ background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; }}
+                .back-btn:hover {{ background: #545b62; }}
+                .form-group {{ margin-bottom: 20px; }}
+                label {{ display: block; margin-bottom: 5px; font-weight: 500; color: #333; }}
+                input, select, textarea {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }}
+                textarea {{ height: 100px; resize: vertical; }}
+                .form-actions {{ display: flex; gap: 10px; justify-content: flex-end; margin-top: 30px; }}
+                .save-btn {{ background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; }}
+                .save-btn:hover {{ background: #0056b3; }}
+                .cancel-btn {{ background: #6c757d; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; }}
+                .cancel-btn:hover {{ background: #545b62; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="title">{title}</div>
+                    <a href="/{self.resource_name}" class="back-btn">← Back to List</a>
+                </div>
+
+                <form id="recordForm" onsubmit="saveRecord(event)">
+                    {''.join(form_fields)}
+
+                    <div class="form-actions">
+                        <a href="/{self.resource_name}" class="cancel-btn">Cancel</a>
+                        <button type="submit" class="save-btn">Save</button>
+                    </div>
+                </form>
+            </div>
+
+            <script>
+                const isEdit = {str(is_edit).lower()};
+                const recordId = {f"'{record_id}'" if record_id else 'null'};
+                const resourceName = '{self.resource_name}';
+
+                if (isEdit && recordId) {{
+                    // Load existing record data
+                    fetch(`/api/{self.resource_name}/${{recordId}}`)
+                        .then(response => response.json())
+                        .then(data => {{
+                            for (const [key, value] of Object.entries(data)) {{
+                                const field = document.getElementById(key);
+                                if (field) field.value = value || '';
+                            }}
+                        }});
+                }}
+
+                function saveRecord(event) {{
+                    event.preventDefault();
+                    const formData = new FormData(event.target);
+                    const data = Object.fromEntries(formData.entries());
+
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const url = isEdit ? `/api/{self.resource_name}/${{recordId}}` : `/api/{self.resource_name}`;
+
+                    fetch(url, {{
+                        method: method,
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify(data)
+                    }})
+                    .then(response => {{
+                        if (response.ok) {{
+                            window.location.href = '/{self.resource_name}';
+                        }} else {{
+                            alert('Error saving record');
+                        }}
+                    }});
+                }}
+            </script>
+        </body>
+        </html>
+        """
+
+class CRUDEngine:
+    """Main CRUD Engine that manages all resources and provides web interface"""
+
+    def __init__(self):
+        self.app = FastAPI(title="DBBasic CRUD Engine", version="1.0.0")
+        self.resources: Dict[str, CRUDResource] = {}
+        self.websocket_connections: Dict[str, List[WebSocket]] = {}
+        self.config_watcher = Observer()
+
+        # Setup file watcher
+        handler = CRUDConfigHandler(self)
+        self.config_watcher.schedule(handler, ".", recursive=False)
+
+        # Setup FastAPI routes
+        self._setup_routes()
+
+        # Load initial configurations
+        self.load_all_configs()
+
+    def _setup_routes(self):
+        """Setup FastAPI routes"""
+
+        @self.app.get("/")
+        async def dashboard():
+            """Main dashboard showing all resources"""
+            resources_html = []
+            for resource_name, resource in self.resources.items():
+                record_count = len(resource.db.execute(f"SELECT COUNT(*) FROM {resource_name}").fetchall())
+                resources_html.append(f"""
+                <div class="resource-card">
+                    <h3>{resource_name.title()}</h3>
+                    <p>{record_count} records</p>
+                    <a href="/{resource_name}" class="resource-link">Manage →</a>
+                </div>
+                """)
+
+            return HTMLResponse(f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>DBBasic CRUD Dashboard</title>
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+                    .container {{ max-width: 1200px; margin: 0 auto; }}
+                    .title {{ font-size: 32px; font-weight: bold; color: #333; margin-bottom: 30px; text-align: center; }}
+                    .resources {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }}
+                    .resource-card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                    .resource-card h3 {{ margin: 0 0 10px 0; color: #333; }}
+                    .resource-card p {{ color: #666; margin: 0 0 15px 0; }}
+                    .resource-link {{ background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }}
+                    .resource-link:hover {{ background: #0056b3; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1 class="title">DBBasic CRUD Dashboard</h1>
+                    <div class="resources">
+                        {''.join(resources_html)}
+                    </div>
+                </div>
+            </body>
+            </html>
+            """)
+
+        @self.app.get("/{resource_name}")
+        async def resource_list(resource_name: str):
+            """Show list view for a resource"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+            return HTMLResponse(self.resources[resource_name].generate_list_html())
+
+        @self.app.get("/{resource_name}/create")
+        async def resource_create_form(resource_name: str):
+            """Show create form for a resource"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+            return HTMLResponse(self.resources[resource_name].generate_form_html())
+
+        @self.app.get("/{resource_name}/{record_id}/edit")
+        async def resource_edit_form(resource_name: str, record_id: str):
+            """Show edit form for a resource"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+            return HTMLResponse(self.resources[resource_name].generate_form_html(record_id))
+
+        # API routes
+        @self.app.get("/api/{resource_name}")
+        async def api_list_records(resource_name: str, limit: int = Query(25), offset: int = Query(0)):
+            """Get records for a resource"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+            try:
+                result = resource.db.execute(
+                    f"SELECT * FROM {resource_name} LIMIT {limit} OFFSET {offset}"
+                ).fetchall()
+
+                # Convert to list of dicts
+                columns = [desc[0] for desc in resource.db.description]
+                records = [dict(zip(columns, row)) for row in result]
+
+                return {"records": records, "total": len(result)}
+            except Exception as e:
+                raise HTTPException(500, f"Database error: {e}")
+
+        @self.app.get("/api/{resource_name}/{record_id}")
+        async def api_get_record(resource_name: str, record_id: str):
+            """Get single record"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+            try:
+                result = resource.db.execute(
+                    f"SELECT * FROM {resource_name} WHERE id = ?", [record_id]
+                ).fetchone()
+
+                if not result:
+                    raise HTTPException(404, "Record not found")
+
+                columns = [desc[0] for desc in resource.db.description]
+                return dict(zip(columns, result))
+            except Exception as e:
+                raise HTTPException(500, f"Database error: {e}")
+
+        @self.app.post("/api/{resource_name}")
+        async def api_create_record(resource_name: str, data: dict):
+            """Create new record"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            # Auto-populate magic fields
+            data = self._populate_magic_fields(resource, data, 'create')
+
+            # Execute hooks
+            if 'before_create' in resource.hooks:
+                await self._execute_hook(resource.hooks['before_create'], data)
+
+            try:
+                # For DuckDB, we need to generate the ID ourselves
+                # Get next ID by finding max existing ID
+                max_id_result = resource.db.execute(f"SELECT COALESCE(MAX(id), 0) FROM {resource_name}").fetchone()
+                next_id = (max_id_result[0] if max_id_result else 0) + 1
+
+                # Add the generated ID to the data
+                data['id'] = next_id
+
+                # Build insert query - include all fields including generated ID
+                fields = [k for k in data.keys() if k in resource.fields]
+                placeholders = ','.join(['?' for _ in fields])
+                values = [data[f] for f in fields]
+
+                # Execute the insert
+                resource.db.execute(
+                    f"INSERT INTO {resource_name} ({','.join(fields)}) VALUES ({placeholders})",
+                    values
+                )
+
+                # Get the created record
+                created_record = resource.db.execute(
+                    f"SELECT * FROM {resource_name} WHERE id = ?", [next_id]
+                ).fetchone()
+
+                columns = [desc[0] for desc in resource.db.description]
+                record_dict = dict(zip(columns, created_record))
+
+                # Execute after hook
+                if 'after_create' in resource.hooks:
+                    await self._execute_hook(resource.hooks['after_create'], record_dict)
+
+                # Notify WebSocket clients
+                await self._broadcast_update(resource_name)
+
+                return record_dict
+            except Exception as e:
+                raise HTTPException(500, f"Database error: {e}")
+
+        @self.app.put("/api/{resource_name}/{record_id}")
+        async def api_update_record(resource_name: str, record_id: int, data: dict):
+            """Update existing record"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            # Check if record exists
+            existing = resource.db.execute(f"SELECT * FROM {resource_name} WHERE id = ?", [record_id]).fetchone()
+            if not existing:
+                raise HTTPException(404, f"Record {record_id} not found")
+
+            # Auto-populate magic fields for update
+            data = self._populate_magic_fields(resource, data, 'update')
+
+            # Execute hooks
+            if 'before_update' in resource.hooks:
+                await self._execute_hook(resource.hooks['before_update'], data)
+
+            try:
+                # Build update query
+                fields = [k for k in data.keys() if k in resource.fields and k != 'id']
+                set_clause = ','.join([f"{f} = ?" for f in fields])
+                values = [data[f] for f in fields] + [record_id]
+
+                # Execute the update
+                resource.db.execute(
+                    f"UPDATE {resource_name} SET {set_clause} WHERE id = ?",
+                    values
+                )
+
+                # Execute after_update hook
+                if 'after_update' in resource.hooks:
+                    await self._execute_hook(resource.hooks['after_update'], data)
+
+                # Broadcast real-time update
+                await self._broadcast_update(resource_name)
+
+                # Return updated record
+                updated = resource.db.execute(f"SELECT * FROM {resource_name} WHERE id = ?", [record_id]).fetchone()
+                columns = [desc[0] for desc in resource.db.description]
+                return dict(zip(columns, updated))
+
+            except Exception as e:
+                logger.error(f"❌ Error updating record: {e}")
+                raise HTTPException(500, f"Error updating record: {e}")
+
+        @self.app.delete("/api/{resource_name}/{record_id}")
+        async def api_delete_record(resource_name: str, record_id: int):
+            """Delete record"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            # Check if record exists
+            existing = resource.db.execute(f"SELECT * FROM {resource_name} WHERE id = ?", [record_id]).fetchone()
+            if not existing:
+                raise HTTPException(404, f"Record {record_id} not found")
+
+            # Execute hooks
+            if 'before_delete' in resource.hooks:
+                existing_data = dict(zip([desc[0] for desc in resource.db.description], existing))
+                await self._execute_hook(resource.hooks['before_delete'], existing_data)
+
+            try:
+                # Execute the delete
+                resource.db.execute(f"DELETE FROM {resource_name} WHERE id = ?", [record_id])
+
+                # Execute after_delete hook
+                if 'after_delete' in resource.hooks:
+                    existing_data = dict(zip([desc[0] for desc in resource.db.description], existing))
+                    await self._execute_hook(resource.hooks['after_delete'], existing_data)
+
+                # Broadcast real-time update
+                await self._broadcast_update(resource_name)
+
+                return {"message": "Record deleted successfully", "id": record_id}
+
+            except Exception as e:
+                logger.error(f"❌ Error deleting record: {e}")
+                raise HTTPException(500, f"Error deleting record: {e}")
+
+        @self.app.websocket("/ws/{resource_name}")
+        async def websocket_endpoint(websocket: WebSocket, resource_name: str):
+            """WebSocket endpoint for real-time updates"""
+            await websocket.accept()
+
+            if resource_name not in self.websocket_connections:
+                self.websocket_connections[resource_name] = []
+            self.websocket_connections[resource_name].append(websocket)
+
+            try:
+                while True:
+                    data = await websocket.receive_json()
+                    if data.get('type') == 'request_data':
+                        # Send current data
+                        if resource_name in self.resources:
+                            resource = self.resources[resource_name]
+                            try:
+                                result = resource.db.execute(f"SELECT * FROM {resource_name}").fetchall()
+                                columns = [desc[0] for desc in resource.db.description]
+                                records = [dict(zip(columns, row)) for row in result]
+
+                                await websocket.send_json({
+                                    "type": "data_update",
+                                    "records": records
+                                })
+                            except Exception as e:
+                                logger.error(f"Error fetching data for WebSocket: {e}")
+            except WebSocketDisconnect:
+                if resource_name in self.websocket_connections:
+                    self.websocket_connections[resource_name].remove(websocket)
+
+    def _populate_magic_fields(self, resource: 'CRUDResource', data: dict, operation: str, user_id: str = None) -> dict:
+        """Auto-populate magic fields like timestamps and user tracking"""
+        now = datetime.now().isoformat()
+        # For now, use a placeholder user ID since we don't have authentication yet
+        current_user = user_id or "system"
+
+        # Check each field in the resource configuration
+        for field_name, field_config in resource.fields.items():
+            # Handle auto_now_add fields (only on create)
+            if operation == 'create' and field_config.get('auto_now_add'):
+                if field_config.get('type') == 'timestamp' and field_name not in data:
+                    data[field_name] = now
+
+            # Handle auto_now fields (on create and update)
+            if field_config.get('auto_now'):
+                if field_config.get('type') == 'timestamp':
+                    data[field_name] = now
+
+            # Handle ownership tracking fields
+            if operation == 'create' and field_config.get('auto_user_add'):
+                if field_name not in data:
+                    data[field_name] = current_user
+
+            if field_config.get('auto_user'):
+                data[field_name] = current_user
+
+        return data
+
+    async def _execute_hook(self, hook_name: str, data: dict):
+        """Execute a hook by calling the corresponding service"""
+        try:
+            # Check if service exists
+            response = requests.get(f"http://localhost:8003/api/services/{hook_name}")
+            if response.status_code == 404:
+                logger.warning(f"🤖 Hook service '{hook_name}' not found, requesting AI generation...")
+                # TODO: Integrate with AI Service Builder to generate missing hook
+                return
+
+            # Call the hook service
+            hook_response = requests.post(
+                f"http://localhost:8003/api/{hook_name}",
+                json=data,
+                timeout=30
+            )
+
+            if hook_response.status_code != 200:
+                logger.error(f"❌ Hook '{hook_name}' failed: {hook_response.text}")
+            else:
+                logger.info(f"✅ Hook '{hook_name}' executed successfully")
+
+        except Exception as e:
+            logger.error(f"❌ Error executing hook '{hook_name}': {e}")
+
+    async def _broadcast_update(self, resource_name: str):
+        """Broadcast updates to all WebSocket clients for a resource"""
+        if resource_name not in self.websocket_connections:
+            return
+
+        if resource_name in self.resources:
+            resource = self.resources[resource_name]
+            try:
+                result = resource.db.execute(f"SELECT * FROM {resource_name}").fetchall()
+                columns = [desc[0] for desc in resource.db.description]
+                records = [dict(zip(columns, row)) for row in result]
+
+                # Send to all connected clients
+                for websocket in self.websocket_connections[resource_name][:]:
+                    try:
+                        await websocket.send_json({
+                            "type": "data_update",
+                            "records": records
+                        })
+                    except:
+                        # Remove disconnected clients
+                        self.websocket_connections[resource_name].remove(websocket)
+            except Exception as e:
+                logger.error(f"Error broadcasting update: {e}")
+
+    def load_all_configs(self):
+        """Load all CRUD configuration files"""
+        config_files = list(Path(".").glob("*_crud.yaml"))
+        for config_file in config_files:
+            self.load_config(str(config_file))
+
+    def load_config(self, config_path: str):
+        """Load a CRUD configuration file"""
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            resource_name = config['resource']
+            self.resources[resource_name] = CRUDResource(config_path, config)
+            logger.info(f"✅ Loaded CRUD config: {resource_name}")
+
+        except Exception as e:
+            logger.error(f"❌ Error loading config {config_path}: {e}")
+
+    async def reload_config(self, config_path: str):
+        """Reload a changed configuration file"""
+        self.load_config(config_path)
+
+        # Broadcast updates to all clients
+        for resource_name in self.resources.keys():
+            await self._broadcast_update(resource_name)
+
+    def start_watching(self):
+        """Start watching for config file changes"""
+        self.config_watcher.start()
+        logger.info("🔍 Started watching for CRUD config changes...")
+
+    def stop_watching(self):
+        """Stop watching for config file changes"""
+        self.config_watcher.stop()
+        self.config_watcher.join()
+
+def main():
+    """Run the CRUD Engine"""
+    engine = CRUDEngine()
+    engine.start_watching()
+
+    try:
+        logger.info("🚀 Starting DBBasic CRUD Engine on http://localhost:8005")
+        uvicorn.run(engine.app, host="0.0.0.0", port=8005, log_level="info")
+    except KeyboardInterrupt:
+        logger.info("🛑 Shutting down CRUD Engine...")
+    finally:
+        engine.stop_watching()
+
+if __name__ == "__main__":
+    main()
