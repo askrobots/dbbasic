@@ -1,0 +1,163 @@
+# DBBasic Config: Shipping Calculator Service
+# Generated from: "Calculate shipping cost based on weight, dimensions, destination zip code, and shipping speed. Use USPS rates for standard, UPS for express. Add $5 handling fee for fragile items. Free shipping over $100."
+
+service:
+  name: calculate_shipping_config
+  version: "1.0"
+  description: "Config-driven shipping calculator with carrier rates and business rules"
+
+# Data sources - could pull from external APIs or local tables
+data_sources:
+  carrier_rates:
+    usps_standard:
+      base_fee: 3.50
+      per_pound: 2.25
+      delivery_days: 5
+    ups_express:
+      base_fee: 6.00
+      per_pound: 3.75
+      delivery_days: 2
+    fedex_overnight:
+      base_fee: 12.00
+      per_pound: 7.50
+      delivery_days: 1
+
+# Business logic as executable rules
+rules:
+  # Primary calculation
+  base_shipping:
+    formula: "carrier_rates[shipping_speed].base_fee + (weight * carrier_rates[shipping_speed].per_pound)"
+
+  # Business rule modifiers
+  free_shipping_threshold:
+    condition: "order_total >= 100"
+    action: "shipping_cost = 0; free_shipping_applied = true"
+    priority: 1
+
+  fragile_handling:
+    condition: "is_fragile == true"
+    action: "shipping_cost += 5.00"
+    priority: 2
+
+  dimensional_weight:
+    condition: "dimensions.length * dimensions.width * dimensions.height > weight * 194"
+    action: "weight = (dimensions.length * dimensions.width * dimensions.height) / 194"
+    priority: 3
+
+# Input validation schema
+inputs:
+  weight:
+    type: number
+    min: 0.1
+    max: 150
+    required: true
+  dimensions:
+    type: object
+    properties:
+      length: {type: number, min: 1}
+      width: {type: number, min: 1}
+      height: {type: number, min: 1}
+  zip_code:
+    type: string
+    pattern: "^[0-9]{5}(-[0-9]{4})?$"
+  shipping_speed:
+    type: string
+    enum: [usps_standard, ups_express, fedex_overnight]
+    default: usps_standard
+  is_fragile:
+    type: boolean
+    default: false
+  order_total:
+    type: number
+    min: 0
+    default: 0
+
+# Output schema
+outputs:
+  shipping_cost:
+    type: number
+    format: currency
+  carrier:
+    type: string
+  estimated_days:
+    type: integer
+  free_shipping_applied:
+    type: boolean
+    default: false
+
+# Carrier mapping
+carrier_mapping:
+  usps_standard: "USPS"
+  ups_express: "UPS"
+  fedex_overnight: "FedEx"
+
+# Zone-based pricing (future enhancement)
+zones:
+  zone_1: ["90210", "90211", "90212"]  # Local delivery
+  zone_2: ["91*", "92*"]               # Regional
+  zone_3: ["*"]                        # National
+
+zone_modifiers:
+  zone_1: 0.8  # 20% discount for local
+  zone_2: 1.0  # Standard rate
+  zone_3: 1.2  # 20% surcharge for distant
+
+# Test cases embedded in config
+test_cases:
+  basic_shipping:
+    input:
+      weight: 2.5
+      shipping_speed: usps_standard
+      is_fragile: false
+      order_total: 75
+    expected:
+      shipping_cost: 9.125  # 3.50 + (2.5 * 2.25)
+      carrier: "USPS"
+      estimated_days: 5
+      free_shipping_applied: false
+
+  free_shipping_case:
+    input:
+      weight: 5.0
+      shipping_speed: ups_express
+      order_total: 150
+    expected:
+      shipping_cost: 0
+      free_shipping_applied: true
+
+  fragile_handling:
+    input:
+      weight: 1.0
+      shipping_speed: usps_standard
+      is_fragile: true
+      order_total: 50
+    expected:
+      shipping_cost: 10.75  # 3.50 + (1.0 * 2.25) + 5.00
+      carrier: "USPS"
+
+  dimensional_weight:
+    input:
+      weight: 2.0
+      dimensions: {length: 20, width: 20, height: 20}
+      shipping_speed: usps_standard
+    expected:
+      weight_used: 41.24  # (20*20*20)/194 = 41.24 > 2.0, so use dimensional
+      shipping_cost: 96.29  # 3.50 + (41.24 * 2.25)
+
+# Deployment configuration
+deployment:
+  endpoint: "/api/shipping/calculate"
+  rate_limit: "1000/hour"
+  cache_ttl: 300  # 5 minutes
+  monitoring: true
+
+# Integration hooks
+integrations:
+  before_calculate:
+    - validate_zip_code
+    - lookup_carrier_rates
+  after_calculate:
+    - log_calculation
+    - update_metrics
+
+# This config replaces 80+ lines of Python code with 40 lines of declarative rules

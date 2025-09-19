@@ -1,0 +1,103 @@
+# DBBasic Config Example: Shipping Calculator
+# This replaces 50+ lines of Python code with 20 lines of config
+
+name: shipping_calculator
+description: "Calculate shipping costs with carrier rates and business rules"
+
+# Data model (optional - for storing rate tables)
+data:
+  carrier_rates:
+    - carrier: USPS
+      service: standard
+      rate_per_pound: 2.50
+      base_fee: 3.00
+    - carrier: UPS
+      service: express
+      rate_per_pound: 4.00
+      base_fee: 5.00
+    - carrier: FedEx
+      service: overnight
+      rate_per_pound: 8.00
+      base_fee: 10.00
+
+# Business rules as config
+rules:
+  free_shipping:
+    condition: "order_total >= 100"
+    action: "set shipping_cost = 0"
+
+  fragile_handling:
+    condition: "is_fragile == true"
+    action: "add 5.00 to shipping_cost"
+
+  weight_calculation:
+    formula: "base_fee + (weight * rate_per_pound)"
+
+  carrier_selection:
+    standard: "USPS"
+    express: "UPS"
+    overnight: "FedEx"
+
+# Input/output specification
+inputs:
+  - name: weight
+    type: number
+    required: true
+  - name: shipping_speed
+    type: string
+    default: "standard"
+    options: [standard, express, overnight]
+  - name: is_fragile
+    type: boolean
+    default: false
+  - name: order_total
+    type: number
+    default: 0
+
+outputs:
+  - name: shipping_cost
+    type: number
+  - name: carrier
+    type: string
+  - name: estimated_days
+    type: integer
+  - name: free_shipping_applied
+    type: boolean
+
+# Service endpoint configuration
+endpoint:
+  path: "/ai/calculate_shipping"
+  method: POST
+  rate_limit: 1000/hour
+
+# Test cases as config
+tests:
+  - name: "basic_shipping"
+    input:
+      weight: 2.5
+      shipping_speed: "standard"
+      is_fragile: false
+      order_total: 75
+    expected:
+      shipping_cost: 9.25  # 3.00 + (2.5 * 2.50)
+      carrier: "USPS"
+      free_shipping_applied: false
+
+  - name: "free_shipping"
+    input:
+      weight: 5.0
+      shipping_speed: "express"
+      order_total: 150
+    expected:
+      shipping_cost: 0
+      free_shipping_applied: true
+
+  - name: "fragile_item"
+    input:
+      weight: 1.0
+      shipping_speed: "standard"
+      is_fragile: true
+      order_total: 50
+    expected:
+      shipping_cost: 10.50  # 3.00 + (1.0 * 2.50) + 5.00
+      carrier: "USPS"
