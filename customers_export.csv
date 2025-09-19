@@ -1,0 +1,4 @@
+id,name,email,phone,credit_limit,status,created_at,updated_at
+2,John Doe,john.doe@example.com,555-0123,5000.00,active,2025-09-19 17:58:16.363415,2025-09-19 17:58:16.363415
+3,Duplicate Test,duplicate@example.com,,1000.00,active,2025-09-19 17:58:16.377775,2025-09-19 17:58:16.377775
+4,Hook Test Customer,hooktest@example.com,,1000.00,active,2025-09-19 17:58:21.422267,2025-09-19 17:58:21.422267

@@ -11,6 +11,8 @@ import asyncio
 import yaml
 import json
 import logging
+import csv
+import io
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +20,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 import duckdb
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 import requests
@@ -668,6 +670,285 @@ class CRUDEngine:
             except Exception as e:
                 logger.error(f"❌ Error deleting record: {e}")
                 raise HTTPException(500, f"Error deleting record: {e}")
+
+        @self.app.get("/api/{resource_name}/export/csv")
+        async def api_export_csv(resource_name: str):
+            """Export all records as CSV"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            try:
+                # Get all records
+                result = resource.db.execute(f"SELECT * FROM {resource_name}").fetchall()
+                columns = [desc[0] for desc in resource.db.description]
+
+                # Create CSV in memory
+                output = io.StringIO()
+                writer = csv.writer(output)
+
+                # Write header
+                writer.writerow(columns)
+
+                # Write data rows
+                for row in result:
+                    writer.writerow(row)
+
+                # Prepare response
+                csv_content = output.getvalue()
+                output.close()
+
+                return StreamingResponse(
+                    io.StringIO(csv_content),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={resource_name}_export.csv"}
+                )
+
+            except Exception as e:
+                logger.error(f"❌ Error exporting CSV: {e}")
+                raise HTTPException(500, f"Error exporting CSV: {e}")
+
+        @self.app.get("/api/{resource_name}/export/json")
+        async def api_export_json(resource_name: str):
+            """Export all records as JSON (for backup purposes)"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            try:
+                # Get all records
+                result = resource.db.execute(f"SELECT * FROM {resource_name}").fetchall()
+                columns = [desc[0] for desc in resource.db.description]
+                records = [dict(zip(columns, row)) for row in result]
+
+                # Create backup structure with metadata
+                backup_data = {
+                    "resource": resource_name,
+                    "exported_at": datetime.now().isoformat(),
+                    "config": resource.config,
+                    "total_records": len(records),
+                    "records": records
+                }
+
+                json_content = json.dumps(backup_data, indent=2, default=str)
+
+                return StreamingResponse(
+                    io.StringIO(json_content),
+                    media_type="application/json",
+                    headers={"Content-Disposition": f"attachment; filename={resource_name}_backup.json"}
+                )
+
+            except Exception as e:
+                logger.error(f"❌ Error exporting JSON: {e}")
+                raise HTTPException(500, f"Error exporting JSON: {e}")
+
+        @self.app.post("/api/{resource_name}/import/csv")
+        async def api_import_csv(
+            resource_name: str,
+            file: UploadFile = File(...),
+            run_hooks: bool = Query(True, description="Execute hooks during import"),
+            skip_validation: bool = Query(False, description="Skip validation hooks (only when run_hooks=True)")
+        ):
+            """Import records from CSV file with optional hook execution"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            try:
+                # Read CSV content
+                content = await file.read()
+                csv_content = content.decode('utf-8')
+
+                # Parse CSV
+                csv_reader = csv.DictReader(io.StringIO(csv_content))
+
+                imported_count = 0
+                skipped_count = 0
+                errors = []
+
+                for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 (after header)
+                    try:
+                        # Auto-populate magic fields for import
+                        data = self._populate_magic_fields(resource, dict(row), 'create')
+
+                        # Remove empty string values and convert to None
+                        for key, value in data.items():
+                            if value == '':
+                                data[key] = None
+
+                        # Remove 'id' field if present (let database auto-generate)
+                        if 'id' in data:
+                            del data['id']
+
+                        # Execute before_create hook if enabled
+                        if run_hooks and 'before_create' in resource.hooks:
+                            try:
+                                if not skip_validation or not resource.hooks['before_create'].endswith('_validation'):
+                                    await self._execute_hook(resource.hooks['before_create'], data)
+                            except Exception as hook_error:
+                                errors.append(f"Row {row_num}: Hook validation failed - {str(hook_error)}")
+                                skipped_count += 1
+                                continue
+
+                        # Build parameterized query
+                        fields = list(data.keys())
+                        placeholders = ', '.join(['?' for _ in fields])
+                        field_names = ', '.join(fields)
+                        values = [data[field] for field in fields]
+
+                        # Insert record
+                        result = resource.db.execute(
+                            f"INSERT INTO {resource_name} ({field_names}) VALUES ({placeholders}) RETURNING *",
+                            values
+                        ).fetchone()
+
+                        # Execute after_create hook if enabled
+                        if run_hooks and 'after_create' in resource.hooks and result:
+                            try:
+                                columns = [desc[0] for desc in resource.db.description]
+                                record_dict = dict(zip(columns, result))
+                                await self._execute_hook(resource.hooks['after_create'], record_dict)
+                            except Exception as hook_error:
+                                # Log but don't fail - record is already created
+                                logger.warning(f"After-create hook failed for row {row_num}: {hook_error}")
+
+                        imported_count += 1
+
+                    except Exception as e:
+                        errors.append(f"Row {row_num}: {str(e)}")
+                        continue
+
+                # Broadcast real-time update if any records were imported
+                if imported_count > 0:
+                    await self._broadcast_update(resource_name)
+
+                result = {
+                    "message": f"Import completed",
+                    "imported_records": imported_count,
+                    "skipped_records": skipped_count,
+                    "total_rows": row_num - 1 if 'row_num' in locals() else 0,
+                    "hooks_executed": run_hooks,
+                    "errors": errors[:10]  # Limit error messages
+                }
+
+                if errors:
+                    result["error_count"] = len(errors)
+                    if len(errors) > 10:
+                        result["note"] = f"Showing first 10 of {len(errors)} errors"
+
+                return result
+
+            except Exception as e:
+                logger.error(f"❌ Error importing CSV: {e}")
+                raise HTTPException(500, f"Error importing CSV: {e}")
+
+        @self.app.post("/api/{resource_name}/import/json")
+        async def api_import_json(
+            resource_name: str,
+            file: UploadFile = File(...),
+            run_hooks: bool = Query(True, description="Execute hooks during import"),
+            skip_validation: bool = Query(False, description="Skip validation hooks")
+        ):
+            """Import records from JSON backup file with optional hook execution"""
+            if resource_name not in self.resources:
+                raise HTTPException(404, f"Resource '{resource_name}' not found")
+
+            resource = self.resources[resource_name]
+
+            try:
+                # Read JSON content
+                content = await file.read()
+                json_content = content.decode('utf-8')
+                backup_data = json.loads(json_content)
+
+                # Validate backup structure
+                if 'records' not in backup_data:
+                    raise HTTPException(400, "Invalid backup file: missing 'records' field")
+
+                records = backup_data['records']
+                imported_count = 0
+                skipped_count = 0
+                errors = []
+
+                for record_num, record in enumerate(records, start=1):
+                    try:
+                        # Auto-populate magic fields for import
+                        data = self._populate_magic_fields(resource, dict(record), 'create')
+
+                        # Remove 'id' field if present (let database auto-generate)
+                        if 'id' in data:
+                            del data['id']
+
+                        # Execute before_create hook if enabled
+                        if run_hooks and 'before_create' in resource.hooks:
+                            try:
+                                if not skip_validation or not resource.hooks['before_create'].endswith('_validation'):
+                                    await self._execute_hook(resource.hooks['before_create'], data)
+                            except Exception as hook_error:
+                                errors.append(f"Record {record_num}: Hook validation failed - {str(hook_error)}")
+                                skipped_count += 1
+                                continue
+
+                        # Build parameterized query
+                        fields = list(data.keys())
+                        placeholders = ', '.join(['?' for _ in fields])
+                        field_names = ', '.join(fields)
+                        values = [data[field] for field in fields]
+
+                        # Insert record
+                        result = resource.db.execute(
+                            f"INSERT INTO {resource_name} ({field_names}) VALUES ({placeholders}) RETURNING *",
+                            values
+                        ).fetchone()
+
+                        # Execute after_create hook if enabled
+                        if run_hooks and 'after_create' in resource.hooks and result:
+                            try:
+                                columns = [desc[0] for desc in resource.db.description]
+                                record_dict = dict(zip(columns, result))
+                                await self._execute_hook(resource.hooks['after_create'], record_dict)
+                            except Exception as hook_error:
+                                # Log but don't fail - record is already created
+                                logger.warning(f"After-create hook failed for record {record_num}: {hook_error}")
+
+                        imported_count += 1
+
+                    except Exception as e:
+                        errors.append(f"Record {record_num}: {str(e)}")
+                        skipped_count += 1
+                        continue
+
+                # Broadcast real-time update if any records were imported
+                if imported_count > 0:
+                    await self._broadcast_update(resource_name)
+
+                result = {
+                    "message": f"Import completed",
+                    "imported_records": imported_count,
+                    "skipped_records": skipped_count,
+                    "total_records": len(records),
+                    "hooks_executed": run_hooks,
+                    "backup_metadata": {
+                        "original_resource": backup_data.get('resource'),
+                        "exported_at": backup_data.get('exported_at'),
+                        "original_total": backup_data.get('total_records')
+                    },
+                    "errors": errors[:10]  # Limit error messages
+                }
+
+                if errors:
+                    result["error_count"] = len(errors)
+                    if len(errors) > 10:
+                        result["note"] = f"Showing first 10 of {len(errors)} errors"
+
+                return result
+
+            except Exception as e:
+                logger.error(f"❌ Error importing JSON: {e}")
+                raise HTTPException(500, f"Error importing JSON: {e}")
 
         @self.app.websocket("/ws/{resource_name}")
         async def websocket_endpoint(websocket: WebSocket, resource_name: str):

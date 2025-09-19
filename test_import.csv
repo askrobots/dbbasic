@@ -1,0 +1,4 @@
+name,email,phone,credit_limit,status
+Alice Smith,alice@example.com,555-1234,2500,active
+Bob Johnson,bob@example.com,555-5678,3000,pending
+Carol Davis,carol@example.com,,1500,inactive
