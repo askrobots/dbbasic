@@ -779,9 +779,12 @@ class CRUDEngine:
                             if value == '':
                                 data[key] = None
 
-                        # Remove 'id' field if present (let database auto-generate)
-                        if 'id' in data:
-                            del data['id']
+                        # Handle ID field - generate if not present or empty
+                        if 'id' not in data or data.get('id') in [None, '']:
+                            # Generate ID like in the regular create endpoint
+                            max_id_result = resource.db.execute(f"SELECT COALESCE(MAX(id), 0) FROM {resource_name}").fetchone()
+                            next_id = (max_id_result[0] if max_id_result else 0) + imported_count + 1
+                            data['id'] = next_id
 
                         # Execute before_create hook if enabled
                         if run_hooks and 'before_create' in resource.hooks:
@@ -878,9 +881,12 @@ class CRUDEngine:
                         # Auto-populate magic fields for import
                         data = self._populate_magic_fields(resource, dict(record), 'create')
 
-                        # Remove 'id' field if present (let database auto-generate)
-                        if 'id' in data:
-                            del data['id']
+                        # Handle ID field - generate if not present or empty
+                        if 'id' not in data or data.get('id') in [None, '']:
+                            # Generate ID like in the regular create endpoint
+                            max_id_result = resource.db.execute(f"SELECT COALESCE(MAX(id), 0) FROM {resource_name}").fetchone()
+                            next_id = (max_id_result[0] if max_id_result else 0) + imported_count + 1
+                            data['id'] = next_id
 
                         # Execute before_create hook if enabled
                         if run_hooks and 'before_create' in resource.hooks:
