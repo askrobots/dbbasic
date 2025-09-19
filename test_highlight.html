@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test YAML Highlighting</title>
+    <style>
+        body { background: #1e1e1e; color: #d4d4d4; font-family: monospace; }
+        pre { padding: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Testing YAML Syntax Highlighting</h1>
+    <pre id="output"></pre>
+
+    <script>
+        function syntaxHighlightYAML(yaml) {
+            // Escape HTML first
+            let result = yaml
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            // Apply syntax highlighting with proper span elements
+            // Comments (must come first to not interfere with other patterns)
+            result = result.replace(/(#.*)/gm, '<span style="color: #6a9955;">$1</span>');
+
+            // YAML keys at start of line (with optional indentation)
+            result = result.replace(/^(\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm,
+                '$1<span style="color: #9cdcfe;">$2</span>:');
+
+            // List items
+            result = result.replace(/^(\s*)-\s+/gm, '$1<span style="color: #569cd6;">-</span> ');
+
+            // Quoted strings (double quotes only to avoid JS syntax errors)
+            result = result.replace(/"([^"]*)"/g, '<span style="color: #ce9178;">"$1"</span>');
+
+            // Booleans and null
+            result = result.replace(/:\s*(true|false|null)\b/gm, ': <span style="color: #569cd6;">$1</span>');
+
+            // Numbers
+            result = result.replace(/:\s*(-?\d+\.?\d*)\b/gm, ': <span style="color: #b5cea8;">$1</span>');
+
+            return result;
+        }
+
+        // Test YAML
+        const testYaml = `# Test YAML Config
+name: "test service"
+version: 1.0
+enabled: true
+count: 42
+price: 10.00
+
+items:
+  - name: "item1"
+    value: 100
+  - name: "item2"
+    value: 200
+
+settings:
+  debug: false
+  timeout: null`;
+
+        // Apply highlighting
+        document.getElementById('output').innerHTML = syntaxHighlightYAML(testYaml);
+        console.log('Highlighting applied successfully!');
+    </script>
+</body>
+</html>

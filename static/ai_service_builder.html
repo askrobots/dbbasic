@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic AI Service Builder - Create Services from Natural Language</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .service-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .service-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .service-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .service-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .service-description {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .service-endpoint {
+            font-family: monospace;
+            font-size: 12px;
+            color: #667eea;
+            margin-top: 5px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-generating {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .code-preview {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Syntax highlighting classes */
+        .code-comment { color: #6a9955; }
+        .code-keyword { color: #c586c0; }
+        .code-string { color: #ce9178; }
+        .code-function { color: #dcdcaa; }
+        .code-number { color: #b5cea8; }
+
+        .test-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .test-input, .test-output {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .test-output.success {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .test-output.error {
+            border-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .example-button {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            margin: 5px;
+        }
+
+        .example-button:hover {
+            background: #bbdefb;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 DBBasic AI Service Builder</h1>
+            <p>Create web services instantly from natural language descriptions</p>
+            <p style="font-size: 14px; margin-top: 10px; opacity: 0.8;">Nobody else does this - just describe what you want, get a running service!</p>
+        </div>
+
+        <div class="main-grid">
+            <!-- Service Creator -->
+            <div class="card">
+                <h2 style="margin-bottom: 20px;">✨ Create New Service</h2>
+                
+                <div class="form-group">
+                    <label>Service Name</label>
+                    <input type="text" id="serviceName" placeholder="e.g., calculate_shipping_cost">
+                    <div class="hint">Use snake_case. This becomes your endpoint: /ai/your_service_name</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Natural Language Description</label>
+                    <textarea id="serviceDescription" placeholder="Describe what your service should do in plain English..."></textarea>
+                    <div class="hint">Be specific! AI will generate the implementation from this description.</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Inputs (comma-separated)</label>
+                    <input type="text" id="serviceInputs" placeholder="e.g., weight, zip_code, shipping_speed">
+                </div>
+
+                <div class="form-group">
+                    <label>Outputs (comma-separated)</label>
+                    <input type="text" id="serviceOutputs" placeholder="e.g., shipping_cost, estimated_days, carrier">
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <strong>Example Descriptions:</strong>
+                    <div style="display: flex; flex-wrap: wrap;">
+                        <button class="example-button" onclick="loadExample('shipping')">Shipping Calculator</button>
+                        <button class="example-button" onclick="loadExample('tax')">Tax Calculator</button>
+                        <button class="example-button" onclick="loadExample('fraud')">Fraud Detection</button>
+                        <button class="example-button" onclick="loadExample('email')">Email Validator</button>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="testWithMockData()">Test with Mock Data</button>
+                    <button class="btn-primary" onclick="createService()">
+                        <span id="createButtonText">🎯 Generate Service with AI</span>
+                        <span id="createButtonLoading" style="display: none;" class="loading"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Service List -->
+            <div class="card">
+                <h2 style="margin-bottom: 20px;">📦 Active Services</h2>
+                
+                <div class="service-list" id="serviceList">
+                    <!-- Services will be loaded here -->
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalServices">0</div>
+                        <div class="stat-label">Total Services</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalRequests">0</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgResponse">0ms</div>
+                        <div class="stat-label">Avg Response</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">100%</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test & Code Panel -->
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('test')">🧪 Test Service</button>
+                <button class="tab" onclick="switchTab('code')">📝 Generated Code</button>
+            </div>
+
+            <div id="testTab" class="tab-content active">
+                <div class="form-group">
+                    <label>Select Service to Test</label>
+                    <select id="testServiceSelect">
+                        <option value="">Choose a service...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Test Data (JSON)</label>
+                    <textarea id="testInput" class="test-input" rows="6">{}</textarea>
+                </div>
+
+                <button class="btn-primary" onclick="runTest()" style="width: 200px;">▶️ Run Test</button>
+
+                <div id="testResult" style="display: none;">
+                    <h3 style="margin: 20px 0 10px;">Result:</h3>
+                    <div id="testOutput" class="test-output"></div>
+                </div>
+            </div>
+
+            <div id="codeTab" class="tab-content">
+                <div class="form-group">
+                    <label>Select Service to View Code</label>
+                    <select id="codeServiceSelect">
+                        <option value="">Choose a service...</option>
+                    </select>
+                </div>
+
+                <div id="codePreview" class="code-preview" style="display: none;">
+                    <!-- Code will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Example service descriptions
+        const examples = {
+            shipping: {
+                name: 'calculate_shipping_cost',
+                description: 'Calculate shipping cost based on weight, dimensions, destination zip code, and shipping speed. Use USPS rates for standard, UPS for express. Add $5 handling fee for fragile items. Free shipping for orders over $100.',
+                inputs: 'weight, dimensions, zip_code, shipping_speed, is_fragile, order_total',
+                outputs: 'shipping_cost, carrier, estimated_days, free_shipping_applied'
+            },
+            tax: {
+                name: 'calculate_sales_tax',
+                description: 'Calculate sales tax based on customer location (state), product category, and subtotal. Apply correct state tax rates. Handle tax-exempt customers. Include local city taxes where applicable.',
+                inputs: 'subtotal, state, city, product_category, is_tax_exempt',
+                outputs: 'tax_amount, tax_rate, total_with_tax, tax_breakdown'
+            },
+            fraud: {
+                name: 'detect_fraud',
+                description: 'Analyze order for fraud risk based on order amount, customer history, shipping address, billing address mismatch, and velocity of orders. Return risk score and recommended action.',
+                inputs: 'order_amount, customer_id, shipping_address, billing_address, previous_orders_count',
+                outputs: 'risk_score, risk_level, recommended_action, risk_factors'
+            },
+            email: {
+                name: 'validate_email',
+                description: 'Validate email address format, check for disposable email domains, verify MX records exist for the domain. Return validation status and any issues found.',
+                inputs: 'email',
+                outputs: 'is_valid, issues, domain_type, mx_records_exist'
+            }
+        };
+
+        // Load example into form
+        function loadExample(type) {
+            const example = examples[type];
+            document.getElementById('serviceName').value = example.name;
+            document.getElementById('serviceDescription').value = example.description;
+            document.getElementById('serviceInputs').value = example.inputs;
+            document.getElementById('serviceOutputs').value = example.outputs;
+        }
+
+        // Create new service
+        async function createService() {
+            const name = document.getElementById('serviceName').value.trim();
+            const description = document.getElementById('serviceDescription').value.trim();
+            const inputs = document.getElementById('serviceInputs').value.split(',').map(s => s.trim()).filter(s => s);
+            const outputs = document.getElementById('serviceOutputs').value.split(',').map(s => s.trim()).filter(s => s);
+
+            if (!name || !description || inputs.length === 0 || outputs.length === 0) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('createButtonText').style.display = 'none';
+            document.getElementById('createButtonLoading').style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/api/services/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description, inputs, outputs })
+                });
+
+                if (!response.ok) throw new Error('Failed to create service');
+
+                const service = await response.json();
+                alert(`✅ Service created successfully!\n\nEndpoint: /ai/${service.name}\n\nYou can now test it or use it in your application!`);
+                
+                // Clear form
+                document.getElementById('serviceName').value = '';
+                document.getElementById('serviceDescription').value = '';
+                document.getElementById('serviceInputs').value = '';
+                document.getElementById('serviceOutputs').value = '';
+
+                // Refresh service list
+                loadServices();
+            } catch (error) {
+                alert('❌ Error creating service: ' + error.message);
+            } finally {
+                // Hide loading
+                document.getElementById('createButtonText').style.display = 'inline';
+                document.getElementById('createButtonLoading').style.display = 'none';
+            }
+        }
+
+        // Load services list
+        async function loadServices() {
+            try {
+                const response = await fetch('/api/services');
+                const services = await response.json();
+
+                // Update service list
+                const listHtml = services.map(service => `
+                    <div class="service-item" onclick="selectService('${service.name}')">
+                        <div class="service-name">${service.name}</div>
+                        <div class="service-description">${service.description}</div>
+                        <div class="service-endpoint">/ai/${service.name}</div>
+                        <span class="status-badge status-${service.status}">${service.status}</span>
+                    </div>
+                `).join('');
+
+                document.getElementById('serviceList').innerHTML = listHtml || '<p style="color: #666;">No services yet. Create your first one!</p>';
+
+                // Update dropdowns
+                const options = '<option value="">Choose a service...</option>' + 
+                    services.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+                document.getElementById('testServiceSelect').innerHTML = options;
+                document.getElementById('codeServiceSelect').innerHTML = options;
+
+                // Update stats
+                document.getElementById('totalServices').textContent = services.length;
+                
+                // Calculate total requests
+                const totalRequests = services.reduce((sum, s) => sum + (s.metrics?.requests || 0), 0);
+                document.getElementById('totalRequests').textContent = totalRequests;
+
+            } catch (error) {
+                console.error('Error loading services:', error);
+            }
+        }
+
+        // Select a service
+        function selectService(name) {
+            document.getElementById('testServiceSelect').value = name;
+            document.getElementById('codeServiceSelect').value = name;
+            loadServiceCode(name);
+        }
+
+        // Load service code
+        async function loadServiceCode(name) {
+            if (!name) return;
+
+            try {
+                const response = await fetch(`/api/services/${name}/code`);
+                const data = await response.json();
+
+                // Display code with proper syntax highlighting
+                let highlightedCode = data.code;
+
+                // Escape HTML entities first
+                highlightedCode = highlightedCode
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
+                // Apply syntax highlighting using CSS classes
+                // Comments (including docstrings)
+                highlightedCode = highlightedCode.replace(/"""[\s\S]*?"""/g, match =>
+                    `<span class="code-comment">${match}</span>`);
+                highlightedCode = highlightedCode.replace(/#.*$/gm, match =>
+                    `<span class="code-comment">${match}</span>`);
+
+                // Keywords
+                highlightedCode = highlightedCode.replace(/\b(def|async|await|return|if|else|elif|try|except|import|from|for|while|in|class|True|False|None|and|or|not|as|with|raise|pass|break|continue)\b/g, match =>
+                    `<span class="code-keyword">${match}</span>`);
+
+                // Strings
+                highlightedCode = highlightedCode.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, match =>
+                    `<span class="code-string">${match}</span>`);
+
+                // Functions
+                highlightedCode = highlightedCode.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()/g, (match, funcName) => {
+                    // Skip if it's a keyword
+                    if (['if', 'for', 'while', 'except', 'with'].includes(funcName)) {
+                        return match;
+                    }
+                    return `<span class="code-function">${funcName}</span>(`;
+                });
+
+                // Numbers
+                highlightedCode = highlightedCode.replace(/\b(\d+\.?\d*)\b/g, match =>
+                    `<span class="code-number">${match}</span>`);
+
+                document.getElementById('codePreview').innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${highlightedCode}</pre>`;
+                document.getElementById('codePreview').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading code:', error);
+                document.getElementById('codePreview').innerHTML = '<pre style="color: #ff6b6b;">Error loading code</pre>';
+                document.getElementById('codePreview').style.display = 'block';
+            }
+        }
+
+        // Run test
+        async function runTest() {
+            const serviceName = document.getElementById('testServiceSelect').value;
+            if (!serviceName) {
+                alert('Please select a service to test');
+                return;
+            }
+
+            const testData = document.getElementById('testInput').value;
+            let parsedData;
+            
+            try {
+                parsedData = JSON.parse(testData);
+            } catch (error) {
+                alert('Invalid JSON in test data');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/services/${serviceName}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(parsedData)
+                });
+
+                const result = await response.json();
+                
+                document.getElementById('testOutput').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('testOutput').className = result.success ? 'test-output success' : 'test-output error';
+                document.getElementById('testResult').style.display = 'block';
+            } catch (error) {
+                document.getElementById('testOutput').textContent = 'Error: ' + error.message;
+                document.getElementById('testOutput').className = 'test-output error';
+                document.getElementById('testResult').style.display = 'block';
+            }
+        }
+
+        // Test with mock data
+        function testWithMockData() {
+            const name = document.getElementById('serviceName').value;
+            const inputs = document.getElementById('serviceInputs').value.split(',').map(s => s.trim()).filter(s => s);
+            
+            // Generate mock data based on input names
+            const mockData = {};
+            inputs.forEach(input => {
+                if (input.includes('weight')) mockData[input] = 2.5;
+                else if (input.includes('amount') || input.includes('total')) mockData[input] = 99.99;
+                else if (input.includes('id')) mockData[input] = '12345';
+                else if (input.includes('email')) mockData[input] = 'test@example.com';
+                else if (input.includes('phone')) mockData[input] = '555-1234';
+                else if (input.includes('zip') || input.includes('postal')) mockData[input] = '90210';
+                else if (input.includes('state')) mockData[input] = 'CA';
+                else if (input.includes('speed')) mockData[input] = 'standard';
+                else if (input.includes('is_') || input.includes('has_')) mockData[input] = false;
+                else mockData[input] = 'sample_value';
+            });
+
+            document.getElementById('testInput').value = JSON.stringify(mockData, null, 2);
+            switchTab('test');
+        }
+
+        // Switch tabs
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+
+            // Load code if switching to code tab
+            if (tabName === 'code') {
+                const selectedService = document.getElementById('codeServiceSelect').value;
+                if (selectedService) {
+                    loadServiceCode(selectedService);
+                }
+            }
+        }
+
+        // Listen for dropdown changes
+        document.getElementById('codeServiceSelect').addEventListener('change', (e) => {
+            loadServiceCode(e.target.value);
+        });
+
+        // Load services on page load
+        loadServices();
+
+        // Refresh services every 5 seconds
+        setInterval(loadServices, 5000);
+    </script>
+</body>
+</html>

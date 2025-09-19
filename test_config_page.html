@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Config Page</title>
+</head>
+<body>
+    <h1>Testing Config Browser</h1>
+
+    <div id="service-configs"></div>
+    <div id="framework-configs"></div>
+
+    <script>
+        // Exact copy of the generated JavaScript
+        const configs = [{"path": "/Users/danq/websheet/dbbasic/shipping_config_example.yaml", "category": "Service Configs", "name": "Shipping Config Example"}, {"path": "/Users/danq/websheet/dbbasic/calculate_shipping_config.yaml", "category": "Service Configs", "name": "Calculate Shipping Config"}, {"path": "/Users/danq/websheet/dbbasic/docs/paradigms/NEXTJS_IN_CONFIG.yaml", "category": "Frameworks as Config", "name": "Nextjs"}];
+
+        console.log('Loaded configs:', configs);
+        console.log('Type of configs:', typeof configs);
+        console.log('Is array?:', Array.isArray(configs));
+
+        // Group configs by category
+        const serviceConfigs = configs.filter(c => c.category === 'Service Configs');
+        const frameworkConfigs = configs.filter(c => c.category === 'Frameworks as Config');
+
+        console.log('Service configs:', serviceConfigs.length);
+        console.log('Framework configs:', frameworkConfigs.length);
+
+        // Render service configs
+        const serviceGrid = document.getElementById('service-configs');
+        console.log('Service grid element:', serviceGrid);
+
+        if (serviceGrid) {
+            serviceConfigs.forEach(config => {
+                const card = document.createElement('div');
+                card.className = 'config-card';
+                card.innerHTML = `
+                    <div class="config-name">${config.name}</div>
+                    <div class="config-path">${config.path}</div>
+                `;
+                serviceGrid.appendChild(card);
+                console.log('Added card for:', config.name);
+            });
+        } else {
+            console.error('Could not find service-configs element!');
+        }
+    </script>
+</body>
+</html>

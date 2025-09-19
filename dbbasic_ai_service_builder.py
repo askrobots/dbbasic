@@ -16,11 +16,14 @@ import textwrap
 import subprocess
 import sys
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+import websockets
+import time
 
 # Service generation templates
 SERVICE_TEMPLATE = '''
@@ -514,9 +517,87 @@ if __name__ == "__main__":
                 service.metrics["errors"] += 1
             raise e
 
+# Real-time monitor WebSocket client
+class MonitorClient:
+    def __init__(self):
+        self.ws = None
+        self.connected = False
+
+    async def connect(self):
+        """Connect to Real-time Monitor WebSocket"""
+        try:
+            self.ws = await websockets.connect("ws://localhost:8004/ws")
+            self.connected = True
+            print("✅ Connected to Real-time Monitor")
+        except Exception as e:
+            print(f"⚠️ Could not connect to Real-time Monitor: {e}")
+            self.connected = False
+
+    async def send_event(self, event_type: str, data: dict):
+        """Send event to monitor"""
+        if not self.connected:
+            return
+
+        try:
+            event = {
+                "type": event_type,
+                "service": "AI Service Builder",
+                "timestamp": datetime.now().isoformat(),
+                "data": data
+            }
+            await self.ws.send(json.dumps(event))
+        except Exception as e:
+            print(f"Failed to send event: {e}")
+            self.connected = False
+
 # Create FastAPI app
 app = FastAPI(title="DBBasic AI Service Builder")
 generator = AIServiceGenerator()
+monitor = MonitorClient()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add request tracking middleware
+@app.middleware("http")
+async def track_requests(request: Request, call_next):
+    """Track all API requests and send to monitor"""
+    start_time = time.time()
+
+    # Send request event to monitor
+    if monitor.connected:
+        await monitor.send_event("api_request", {
+            "method": request.method,
+            "path": str(request.url.path),
+            "client": request.client.host if request.client else "unknown"
+        })
+
+    response = await call_next(request)
+
+    # Calculate processing time
+    process_time = time.time() - start_time
+
+    # Send response event to monitor
+    if monitor.connected:
+        await monitor.send_event("api_response", {
+            "method": request.method,
+            "path": str(request.url.path),
+            "status": response.status_code,
+            "duration_ms": round(process_time * 1000, 2)
+        })
+
+    return response
+
+# Connect to monitor on startup
+@app.on_event("startup")
+async def startup_event():
+    """Connect to Real-time Monitor on startup"""
+    await monitor.connect()
 
 @app.get("/")
 async def root():

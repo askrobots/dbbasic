@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test YAML Highlighting</title>
+    <style>
+        body {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Monaco', monospace;
+            padding: 20px;
+        }
+        #output {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 5px;
+            white-space: pre;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        h1 { color: #9cdcfe; }
+    </style>
+</head>
+<body>
+    <h1>Testing YAML Syntax Highlighting</h1>
+    <div id="output"></div>
+
+    <script>
+        function syntaxHighlightYAML(yaml) {
+            // Create a temporary element to safely build HTML
+            const temp = document.createElement('div');
+
+            // First escape the YAML for HTML safety
+            const lines = yaml.split('\n');
+
+            lines.forEach(line => {
+                const lineSpan = document.createElement('span');
+
+                // Check for comments
+                if (line.includes('#')) {
+                    const commentIndex = line.indexOf('#');
+                    const beforeComment = line.substring(0, commentIndex);
+                    const comment = line.substring(commentIndex);
+
+                    // Add the part before the comment
+                    processLine(lineSpan, beforeComment);
+
+                    // Add the comment in green
+                    const commentSpan = document.createElement('span');
+                    commentSpan.style.color = '#6a9955';
+                    commentSpan.textContent = comment;
+                    lineSpan.appendChild(commentSpan);
+                } else {
+                    processLine(lineSpan, line);
+                }
+
+                temp.appendChild(lineSpan);
+                temp.appendChild(document.createTextNode('\n'));
+            });
+
+            function processLine(container, line) {
+                // Match YAML key-value pattern
+                const keyMatch = line.match(/^(\s*)([a-zA-Z_][\w\s_-]*?)(:)(.*)$/);
+                if (keyMatch) {
+                    const [, indent, key, colon, rest] = keyMatch;
+
+                    // Add indentation
+                    container.appendChild(document.createTextNode(indent));
+
+                    // Add key in blue
+                    const keySpan = document.createElement('span');
+                    keySpan.style.color = '#9cdcfe';
+                    keySpan.textContent = key;
+                    container.appendChild(keySpan);
+
+                    // Add colon
+                    container.appendChild(document.createTextNode(colon));
+
+                    // Process the value
+                    if (rest) {
+                        processValue(container, rest);
+                    }
+                    return;
+                }
+
+                // Match list items
+                const listMatch = line.match(/^(\s*)(-)(\s+)(.*)$/);
+                if (listMatch) {
+                    const [, indent, dash, space, rest] = listMatch;
+
+                    // Add indentation
+                    container.appendChild(document.createTextNode(indent));
+
+                    // Add dash in blue
+                    const dashSpan = document.createElement('span');
+                    dashSpan.style.color = '#569cd6';
+                    dashSpan.textContent = dash;
+                    container.appendChild(dashSpan);
+
+                    // Add space
+                    container.appendChild(document.createTextNode(space));
+
+                    // Process the rest
+                    if (rest) {
+                        processValue(container, rest);
+                    }
+                    return;
+                }
+
+                // Default: just add the text
+                container.appendChild(document.createTextNode(line));
+            }
+
+            function processValue(container, value) {
+                const trimmed = value.trim();
+
+                // Check for quoted strings
+                if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+                    (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+                    const stringSpan = document.createElement('span');
+                    stringSpan.style.color = '#ce9178';
+                    stringSpan.textContent = value;
+                    container.appendChild(stringSpan);
+                }
+                // Check for booleans and null
+                else if (trimmed === 'true' || trimmed === 'false' || trimmed === 'null') {
+                    const spaces = value.substring(0, value.indexOf(trimmed));
+                    container.appendChild(document.createTextNode(spaces));
+
+                    const boolSpan = document.createElement('span');
+                    boolSpan.style.color = '#569cd6';
+                    boolSpan.textContent = trimmed;
+                    container.appendChild(boolSpan);
+                }
+                // Check for numbers
+                else if (/^\s*-?\d+\.?\d*\s*$/.test(value)) {
+                    const spaces = value.substring(0, value.indexOf(value.trim()));
+                    container.appendChild(document.createTextNode(spaces));
+
+                    const numSpan = document.createElement('span');
+                    numSpan.style.color = '#b5cea8';
+                    numSpan.textContent = value.trim();
+                    container.appendChild(numSpan);
+                }
+                // Default
+                else {
+                    container.appendChild(document.createTextNode(value));
+                }
+            }
+
+            return temp.innerHTML;
+        }
+
+        // Test YAML
+        const testYaml = `# Test YAML Config
+name: "test service"
+version: 1.0
+enabled: true
+count: 42
+price: 10.00
+description: 'Single quoted string'
+
+items:
+  - name: "item1"
+    value: 100
+    active: true
+  - name: "item2"
+    value: 200
+    active: false
+
+settings:
+  debug: false
+  timeout: null
+  max_retries: 3
+
+# Another comment
+database:
+  host: localhost
+  port: 5432`;
+
+        // Apply highlighting
+        document.getElementById('output').innerHTML = syntaxHighlightYAML(testYaml);
+        console.log('Highlighting applied successfully!');
+    </script>
+</body>
+</html>
