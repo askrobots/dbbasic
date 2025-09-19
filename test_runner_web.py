@@ -165,6 +165,110 @@ async def run_tests_async(test_file: str = "test_dbbasic_channels.py"):
             "timestamp": datetime.now().isoformat()
         })
 
+async def run_selenium_tests_async():
+    """Run Selenium tests and parse output in real-time"""
+    global test_results
+
+    test_results["running"] = True
+    test_results["output"] = []
+    test_results["tests"] = []
+    test_results["last_run"] = datetime.now().isoformat()
+
+    await broadcast_message({
+        "type": "test_started",
+        "test_type": "selenium",
+        "timestamp": datetime.now().isoformat()
+    })
+
+    try:
+        # Run Selenium tests
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "test_with_selenium.py",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        # Read output line by line
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+
+            line_text = line.decode().strip()
+            if line_text:
+                test_results["output"].append(line_text)
+
+                # Parse Selenium test results
+                if "✅ PASSED:" in line_text:
+                    test_name = line_text.split("✅ PASSED:")[1].strip()
+                    test_results["tests"].append({
+                        "name": test_name,
+                        "status": "passed",
+                        "time": datetime.now().isoformat()
+                    })
+                    await broadcast_message({
+                        "type": "test_result",
+                        "name": test_name,
+                        "status": "passed",
+                        "line": line_text
+                    })
+
+                elif "❌ FAILED:" in line_text or "❌ FAIL:" in line_text:
+                    test_name = line_text.split("❌")[1].split(":")[1].strip() if ":" in line_text else "Unknown"
+                    test_results["tests"].append({
+                        "name": test_name,
+                        "status": "failed",
+                        "time": datetime.now().isoformat()
+                    })
+                    await broadcast_message({
+                        "type": "test_result",
+                        "name": test_name,
+                        "status": "failed",
+                        "line": line_text
+                    })
+
+                elif "Testing" in line_text and line_text.endswith("..."):
+                    # Mark test as running
+                    test_name = line_text.replace("Testing", "").replace("...", "").strip()
+                    await broadcast_message({
+                        "type": "test_running",
+                        "name": test_name,
+                        "line": line_text
+                    })
+
+                # Broadcast output line
+                await broadcast_message({
+                    "type": "output",
+                    "line": line_text
+                })
+
+        await process.wait()
+
+        # Generate summary
+        passed = sum(1 for t in test_results["tests"] if t["status"] == "passed")
+        failed = sum(1 for t in test_results["tests"] if t["status"] == "failed")
+        test_results["summary"] = {
+            "passed": passed,
+            "failed": failed,
+            "total": len(test_results["tests"])
+        }
+
+    except Exception as e:
+        test_results["output"].append(f"Error running Selenium tests: {str(e)}")
+        await broadcast_message({
+            "type": "error",
+            "message": str(e)
+        })
+
+    finally:
+        test_results["running"] = False
+        await broadcast_message({
+            "type": "test_completed",
+            "test_type": "selenium",
+            "summary": test_results["summary"],
+            "timestamp": datetime.now().isoformat()
+        })
+
 @app.get("/")
 async def root():
     """Serve the test runner interface"""
@@ -462,7 +566,10 @@ async def root():
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <div class="benchmark-badge">⚡ 402M rows/sec</div>
                 <button class="run-btn" id="runBtn" onclick="runTests()">
-                    Run All Tests
+                    Run Unit Tests
+                </button>
+                <button class="run-btn" id="seleniumBtn" onclick="runSeleniumTests()">
+                    Run Selenium Tests
                 </button>
             </div>
         </div>
@@ -512,14 +619,15 @@ async def root():
         const outputConsole = document.getElementById('outputConsole');
         const testList = document.getElementById('testList');
         const runBtn = document.getElementById('runBtn');
+        const seleniumBtn = document.getElementById('seleniumBtn');
         const statusIndicator = document.getElementById('statusIndicator');
         const summary = document.getElementById('summary');
 
         let testItems = {};
         let startTime = null;
 
-        // Test names from our test suite
-        const testNames = [
+        // Test names from our test suites
+        const unitTestNames = [
             'test_publish_single_message',
             'test_subscribe_and_receive',
             'test_wildcard_subscription',
@@ -541,11 +649,21 @@ async def root():
             'test_integration_full_pipeline'
         ];
 
+        const seleniumTestNames = [
+            'Dashboard Links',
+            'Config Count',
+            'Syntax Highlighting'
+        ];
+
+        let currentTestType = 'unit';
+
         // Initialize test list
-        function initTestList() {
+        function initTestList(testType = 'unit') {
             testList.innerHTML = '';
             testItems = {};
+            currentTestType = testType;
 
+            const testNames = testType === 'selenium' ? seleniumTestNames : unitTestNames;
             testNames.forEach(name => {
                 const item = document.createElement('div');
                 item.className = 'test-item pending';
@@ -568,13 +686,21 @@ async def root():
 
             if (data.type === 'test_started') {
                 outputConsole.innerHTML = '';
-                initTestList();
+                const testType = data.test_type || 'unit';
+                initTestList(testType);
                 summary.style.display = 'none';
                 startTime = Date.now();
                 statusIndicator.innerHTML = '<span>Running</span><div class="spinner"></div>';
                 statusIndicator.style.color = '#ffc107';
                 runBtn.disabled = true;
-                runBtn.textContent = 'Running...';
+                seleniumBtn.disabled = true;
+                if (testType === 'selenium') {
+                    seleniumBtn.textContent = 'Running...';
+                    runBtn.textContent = 'Run Unit Tests';
+                } else {
+                    runBtn.textContent = 'Running...';
+                    seleniumBtn.textContent = 'Run Selenium Tests';
+                }
             }
 
             else if (data.type === 'test_result') {
@@ -591,7 +717,9 @@ async def root():
                 statusIndicator.innerHTML = 'Completed';
                 statusIndicator.style.color = '#28a745';
                 runBtn.disabled = false;
-                runBtn.textContent = 'Run All Tests';
+                seleniumBtn.disabled = false;
+                runBtn.textContent = 'Run Unit Tests';
+                seleniumBtn.textContent = 'Run Selenium Tests';
 
                 // Update summary
                 updateSummary(data.summary, duration);
@@ -603,7 +731,9 @@ async def root():
                 statusIndicator.innerHTML = 'Error';
                 statusIndicator.style.color = '#dc3545';
                 runBtn.disabled = false;
-                runBtn.textContent = 'Run All Tests';
+                seleniumBtn.disabled = false;
+                runBtn.textContent = 'Run Unit Tests';
+                seleniumBtn.textContent = 'Run Selenium Tests';
             }
         };
 
@@ -645,6 +775,12 @@ async def root():
             const response = await fetch('/api/run-tests', { method: 'POST' });
             const result = await response.json();
             console.log('Tests started:', result);
+        }
+
+        async function runSeleniumTests() {
+            const response = await fetch('/api/run-selenium-tests', { method: 'POST' });
+            const result = await response.json();
+            console.log('Selenium tests started:', result);
         }
 
         async function loadTestStatus() {
@@ -701,6 +837,24 @@ async def run_tests(background_tasks: BackgroundTasks):
 
     return JSONResponse({
         "status": "started",
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.post("/api/run-selenium-tests")
+async def run_selenium_tests(background_tasks: BackgroundTasks):
+    """Start running Selenium tests"""
+    if test_results["running"]:
+        return JSONResponse({
+            "status": "error",
+            "message": "Tests already running"
+        })
+
+    # Run Selenium tests in background
+    background_tasks.add_task(run_selenium_tests_async)
+
+    return JSONResponse({
+        "status": "started",
+        "test_type": "selenium",
         "timestamp": datetime.now().isoformat()
     })
 

@@ -427,7 +427,7 @@ if __name__ == "__main__":
     
     async def generate_service(self, request: ServiceRequest) -> AIService:
         """Generate a complete AI service from description"""
-        
+
         # Create service object
         service = AIService(
             name=request.name,
@@ -438,13 +438,23 @@ if __name__ == "__main__":
             status="generating",
             created_at=datetime.now()
         )
-        
+
         self.services[request.name] = service
-        
+
+        # Send task creation event to monitor
+        if monitor.connected:
+            await monitor.send_event("task_created", {
+                "task_type": "service_generation",
+                "service_name": request.name,
+                "description": request.description,
+                "inputs": request.inputs,
+                "outputs": request.outputs
+            })
+
         try:
             # Generate the service code
             function_name = request.name.replace('-', '_')
-            
+
             code = SERVICE_TEMPLATE.format(
                 name=request.name,
                 function_name=function_name,
@@ -455,11 +465,19 @@ if __name__ == "__main__":
                 input_extraction=self.generate_input_extraction(request.inputs),
                 business_logic=self.generate_business_logic(request)
             )
-            
+
             # Save the service to file
             service_path = self.services_dir / f"{function_name}.py"
             with open(service_path, 'w') as f:
                 f.write(code)
+
+            # Send file creation event to monitor
+            if monitor.connected:
+                await monitor.send_event("file_created", {
+                    "file_type": "service",
+                    "file_path": str(service_path),
+                    "service_name": request.name
+                })
 
             # Generate and save tests
             test_code = self.generate_test_cases(request)
@@ -467,23 +485,92 @@ if __name__ == "__main__":
             with open(test_path, 'w') as f:
                 f.write(test_code)
 
+            # Send test creation event to monitor
+            if monitor.connected:
+                await monitor.send_event("test_created", {
+                    "test_file": str(test_path),
+                    "service_name": request.name,
+                    "auto_run": True
+                })
+
             service.code_path = str(service_path)
             service.test_path = str(test_path)
             service.status = "active"
-            
+
             # Initialize metrics
             service.metrics = {
                 "requests": 0,
                 "errors": 0,
                 "avg_response_time_ms": 0
             }
-            
+
+            # Automatically run tests for the new service
+            await self.auto_run_service_tests(request.name, service)
+
         except Exception as e:
             service.status = "error"
             service.error = str(e)
-            
+
+            # Send error event to monitor
+            if monitor.connected:
+                await monitor.send_event("task_error", {
+                    "task_type": "service_generation",
+                    "service_name": request.name,
+                    "error": str(e)
+                })
+
         return service
-    
+
+    async def auto_run_service_tests(self, service_name: str, service: AIService):
+        """Automatically run tests for a newly created service"""
+        try:
+            # Send test start event to monitor
+            if monitor.connected:
+                await monitor.send_event("auto_test_started", {
+                    "service_name": service_name,
+                    "test_file": service.test_path
+                })
+
+            # Run pytest on the specific test file
+            import subprocess
+            result = subprocess.run(
+                ["python", "-m", "pytest", service.test_path, "-v", "--tb=short"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            test_passed = result.returncode == 0
+
+            # Send test results to monitor
+            if monitor.connected:
+                await monitor.send_event("auto_test_completed", {
+                    "service_name": service_name,
+                    "test_file": service.test_path,
+                    "passed": test_passed,
+                    "output": result.stdout,
+                    "errors": result.stderr,
+                    "exit_code": result.returncode
+                })
+
+            # Update service metrics with test results
+            if service.metrics:
+                service.metrics["last_test_run"] = datetime.now().isoformat()
+                service.metrics["last_test_passed"] = test_passed
+
+        except subprocess.TimeoutExpired:
+            if monitor.connected:
+                await monitor.send_event("auto_test_timeout", {
+                    "service_name": service_name,
+                    "test_file": service.test_path
+                })
+        except Exception as e:
+            if monitor.connected:
+                await monitor.send_event("auto_test_error", {
+                    "service_name": service_name,
+                    "error": str(e)
+                })
+
     async def test_service(self, name: str, test_data: Dict) -> Dict:
         """Test a service with sample data"""
 
@@ -1224,6 +1311,76 @@ async def logs_interface():
 </html>'''
 
     return HTMLResponse(content=html_content)
+
+@app.get("/api/tasks/check")
+async def check_pending_tasks():
+    """Check for pending tasks and execute them"""
+    tasks = []
+
+    # Check for services with tests that need to be run
+    for service_name, service in generator.services.items():
+        if service.status == "active" and hasattr(service, 'test_path'):
+            # Check if tests have been run recently
+            last_test_run = service.metrics.get("last_test_run") if service.metrics else None
+
+            tasks.append({
+                "type": "test_execution",
+                "service_name": service_name,
+                "test_file": service.test_path,
+                "last_run": last_test_run,
+                "needs_testing": last_test_run is None
+            })
+
+    # Send task check event to monitor
+    if monitor.connected:
+        await monitor.send_event("task_check_completed", {
+            "total_tasks": len(tasks),
+            "pending_tests": sum(1 for t in tasks if t["needs_testing"])
+        })
+
+    return {
+        "total_tasks": len(tasks),
+        "tasks": tasks,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/tasks/run-pending")
+async def run_pending_tasks():
+    """Run all pending tasks (tests for services that haven't been tested)"""
+    results = []
+
+    for service_name, service in generator.services.items():
+        if service.status == "active" and hasattr(service, 'test_path'):
+            last_test_run = service.metrics.get("last_test_run") if service.metrics else None
+
+            # Run tests if they haven't been run yet
+            if last_test_run is None:
+                try:
+                    await generator.auto_run_service_tests(service_name, service)
+                    results.append({
+                        "service": service_name,
+                        "status": "tests_executed",
+                        "test_file": service.test_path
+                    })
+                except Exception as e:
+                    results.append({
+                        "service": service_name,
+                        "status": "error",
+                        "error": str(e)
+                    })
+
+    # Send batch test completion to monitor
+    if monitor.connected:
+        await monitor.send_event("batch_tests_completed", {
+            "total_services": len(results),
+            "executed_tests": len([r for r in results if r["status"] == "tests_executed"])
+        })
+
+    return {
+        "executed": len(results),
+        "results": results,
+        "timestamp": datetime.now().isoformat()
+    }
 
 @app.get("/api/tests/run")
 async def run_tests():

@@ -64,7 +64,7 @@ def test_with_live_tasks(headless=True):
         
         # Check initial state
         events_container = driver.find_element(By.ID, 'stream-content')
-        initial_events = events_container.find_elements(By.CLASS_NAME, 'log-entry')
+        initial_events = events_container.find_elements(By.CLASS_NAME, 'stream-entry')
         print(f'📊 Initial events count: {len(initial_events)}')
         
         # Start background task thread
@@ -76,7 +76,7 @@ def test_with_live_tasks(headless=True):
         time.sleep(4)
         
         # Check for new events
-        new_events = events_container.find_elements(By.CLASS_NAME, 'log-entry')
+        new_events = events_container.find_elements(By.CLASS_NAME, 'stream-entry')
         print(f'📊 Events after tasks: {len(new_events)}')
         
         if len(new_events) > len(initial_events):

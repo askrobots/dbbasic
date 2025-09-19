@@ -32,6 +32,9 @@ app = FastAPI(title="DBBasic Realtime Monitor")
 # Store for active connections
 active_connections: List[WebSocket] = []
 
+# Store for events
+events: List[Dict[str, Any]] = []
+
 # Metrics storage
 metrics = {
     "operations_per_second": deque(maxlen=60),  # Last 60 seconds
@@ -228,13 +231,47 @@ async def websocket_endpoint(websocket: WebSocket):
             "timestamp": datetime.now().isoformat()
         })
 
-        # Keep connection alive
+        # Keep connection alive and handle incoming events
         while True:
-            data = await websocket.receive_text()
-            # Handle any commands from client if needed
+            try:
+                # Wait for incoming data with timeout
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                print(f"Received event: {data[:100]}...")
+
+                # Parse incoming event data
+                try:
+                    event_data = json.loads(data)
+
+                    # Store event for display (keep last 100 events)
+                    events.append(event_data)
+                    if len(events) > 100:
+                        events.pop(0)
+
+                    # Broadcast to all browser connections (excluding sender)
+                    for connection in active_connections[:]:
+                        if connection != websocket:  # Don't send back to sender
+                            try:
+                                await connection.send_json(event_data)
+                            except:
+                                # Remove broken connections
+                                if connection in active_connections:
+                                    active_connections.remove(connection)
+
+                except json.JSONDecodeError:
+                    print(f"Invalid JSON received: {data}")
+
+            except asyncio.TimeoutError:
+                # Send ping to keep connection alive
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except:
+                    # Connection is broken
+                    break
 
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
+        print("connection closed")
+        if websocket in active_connections:
+            active_connections.remove(websocket)
 
 @app.get("/")
 async def root():
