@@ -1,0 +1,415 @@
+# DBBasic E-Commerce Template - Products
+# Complete product catalog with inventory, pricing, and multi-variant support
+
+resource: products
+database: ecommerce.db
+
+fields:
+  id:
+    type: primary_key
+  name:
+    type: string
+    required: true
+    searchable: true
+    max_length: 200
+  slug:
+    type: string
+    unique: true
+    max_length: 200
+  description:
+    type: text
+    required: true
+    ui:
+      component: rich_editor
+      toolbar: [bold, italic, list, link]
+  short_description:
+    type: text
+    max_length: 500
+    ui:
+      component: textarea
+      rows: 3
+  sku:
+    type: string
+    unique: true
+    required: true
+    max_length: 50
+    ui:
+      help_text: "Stock Keeping Unit - unique product identifier"
+  category_id:
+    type: foreign_key
+    references: categories
+    required: true
+  brand_id:
+    type: foreign_key
+    references: brands
+  price:
+    type: decimal
+    precision: 10
+    scale: 2
+    required: true
+    min: 0
+    ui:
+      prefix: "$"
+      step: 0.01
+  cost_price:
+    type: decimal
+    precision: 10
+    scale: 2
+    min: 0
+    ui:
+      prefix: "$"
+      help_text: "Internal cost for profit calculations"
+  compare_at_price:
+    type: decimal
+    precision: 10
+    scale: 2
+    min: 0
+    ui:
+      prefix: "$"
+      help_text: "Original price for showing discounts"
+  weight:
+    type: decimal
+    precision: 8
+    scale: 3
+    ui:
+      suffix: "lbs"
+      help_text: "Product weight for shipping calculations"
+  dimensions:
+    type: json
+    ui:
+      component: dimension_input
+      fields: [length, width, height]
+      suffix: "inches"
+
+  # Inventory Management
+  track_inventory:
+    type: boolean
+    default: true
+  inventory_quantity:
+    type: integer
+    default: 0
+    min: 0
+    ui:
+      help_text: "Current stock level"
+  low_stock_threshold:
+    type: integer
+    default: 10
+    min: 0
+  allow_backorders:
+    type: boolean
+    default: false
+
+  # Product Status and Visibility
+  status:
+    type: select
+    options: [draft, active, inactive, discontinued]
+    default: draft
+    required: true
+  visibility:
+    type: select
+    options: [public, private, hidden, password_protected]
+    default: public
+  featured:
+    type: boolean
+    default: false
+
+  # SEO and Media
+  seo_title:
+    type: string
+    max_length: 60
+  seo_description:
+    type: string
+    max_length: 160
+  images:
+    type: json
+    ui:
+      component: image_gallery
+      max_files: 10
+      accept: [jpg, jpeg, png, webp]
+      max_size: 5MB
+
+  # Pricing and Promotions
+  on_sale:
+    type: boolean
+    default: false
+  sale_price:
+    type: decimal
+    precision: 10
+    scale: 2
+    min: 0
+  sale_start_date:
+    type: date
+  sale_end_date:
+    type: date
+
+  # Product Attributes
+  attributes:
+    type: json
+    ui:
+      component: key_value_editor
+      help_text: "Custom product attributes (color, size, material, etc.)"
+
+  # Analytics and Performance
+  view_count:
+    type: integer
+    default: 0
+    ui:
+      readonly: true
+  sales_count:
+    type: integer
+    default: 0
+    ui:
+      readonly: true
+  rating_average:
+    type: decimal
+    precision: 3
+    scale: 2
+    default: 0
+    ui:
+      readonly: true
+      component: star_rating
+  review_count:
+    type: integer
+    default: 0
+    ui:
+      readonly: true
+
+  # Timestamps
+  created_at:
+    type: timestamp
+    auto_now_add: true
+  updated_at:
+    type: timestamp
+    auto_now: true
+
+# Complex E-Commerce Business Logic Hooks
+hooks:
+  before_create:
+    - validate_product_data          # Comprehensive product validation
+    - generate_sku_if_empty         # Auto-generate SKU from category + name
+    - calculate_profit_margins      # Validate pricing vs costs
+    - optimize_product_images       # Resize, compress, generate thumbnails
+
+  after_create:
+    - create_inventory_record       # Initialize inventory tracking
+    - generate_product_variants     # Create size/color variants if specified
+    - index_product_for_search      # Add to search index
+    - create_product_feed_entry     # Add to Google Shopping feed
+    - trigger_reorder_notification  # Notify if low stock
+
+  before_update:
+    - validate_inventory_changes    # Prevent negative inventory
+    - check_active_orders          # Warn if product has pending orders
+    - preserve_sales_history       # Maintain historical pricing data
+    - validate_price_changes       # Check minimum profit margins
+
+  after_update:
+    - update_inventory_levels      # Sync inventory across warehouses
+    - recalculate_order_totals     # Update cart totals if price changed
+    - invalidate_product_cache     # Clear cached product pages
+    - update_search_index          # Refresh search results
+    - sync_to_marketplace         # Update Amazon, eBay listings
+    - notify_price_change_subscribers # Email users watching this product
+
+  before_delete:
+    - check_order_dependencies     # Prevent deletion if in active orders
+    - backup_product_data          # Archive for compliance
+    - check_inventory_movements    # Ensure no pending stock transfers
+
+  after_delete:
+    - cleanup_product_images       # Remove uploaded files
+    - remove_from_search_index     # Remove from search
+    - update_category_counts       # Recalculate category statistics
+    - cancel_pending_orders        # Handle orphaned cart items
+
+# Advanced Permission System
+permissions:
+  create:
+    - role: admin
+    - role: catalog_manager
+  read:
+    active: public                 # Active products visible to all
+    draft: owner_or_admin         # Drafts only to creators/admins
+    inactive: admin_only          # Inactive products admin-only
+  update:
+    - role: admin
+    - role: catalog_manager
+    - condition: owner_and_draft   # Owners can edit their drafts
+  delete:
+    - role: admin
+    - condition: no_orders         # Only if no order history
+
+# Advanced API Configuration
+api:
+  base_path: /api/products
+  enable_bulk: true
+  enable_export: true
+  rate_limiting:
+    read: 2000/hour
+    write: 500/hour
+
+  # Custom E-Commerce Endpoints
+  custom_endpoints:
+    - path: /featured
+      method: GET
+      filter: {featured: true, status: active}
+      cache_ttl: 3600
+
+    - path: /on-sale
+      method: GET
+      filter: {on_sale: true, status: active}
+      ordering: [sale_price]
+
+    - path: /category/{category_slug}
+      method: GET
+      join: categories
+      filter: {status: active}
+
+    - path: /{id}/variants
+      method: GET
+      related: product_variants
+
+    - path: /{id}/reviews
+      method: GET
+      related: reviews
+      ordering: [-created_at]
+
+    - path: /{id}/inventory
+      method: GET
+      action: get_inventory_status
+      permissions: [admin, inventory_manager]
+
+    - path: /{id}/reserve
+      method: POST
+      action: reserve_inventory
+      permissions: [authenticated]
+
+    - path: /search
+      method: GET
+      action: search_products
+      parameters: [q, category, min_price, max_price, in_stock]
+
+# Rich User Interface Configuration
+interface:
+  # Admin Product List
+  list_display: [name, sku, category, price, inventory_quantity, status, featured]
+  list_filters: [status, category_id, brand_id, featured, on_sale, created_at]
+  search_fields: [name, description, sku, attributes]
+  ordering: [-created_at]
+  per_page: 25
+
+  # Advanced Product Form
+  form_layout:
+    - section: "Basic Information"
+      fields: [name, slug, description, short_description]
+      columns: 1
+
+    - section: "Product Details"
+      fields: [sku, category_id, brand_id, weight, dimensions]
+      columns: 2
+
+    - section: "Pricing"
+      fields: [price, cost_price, compare_at_price, on_sale, sale_price]
+      columns: 3
+
+    - section: "Inventory"
+      fields: [track_inventory, inventory_quantity, low_stock_threshold, allow_backorders]
+      columns: 2
+
+    - section: "Visibility & Status"
+      fields: [status, visibility, featured]
+      columns: 3
+
+    - section: "Media & SEO"
+      fields: [images, seo_title, seo_description]
+      columns: 1
+
+    - section: "Attributes"
+      fields: [attributes]
+      columns: 1
+
+  # Public Product Display
+  detail_template: product_page
+  detail_layout:
+    gallery: [images]
+    info: [name, price, rating_average, short_description]
+    details: [description, attributes, specifications]
+    actions: [add_to_cart, add_to_wishlist, share]
+    related: [similar_products, recently_viewed]
+
+# Bootstrap E-Commerce Theme
+ui:
+  theme: bootstrap
+  variant: ecommerce
+
+  components:
+    list:
+      variant: table-hover
+      density: compact
+      bulk_actions: [export, bulk_edit, bulk_delete, feature, unfeature]
+
+    form:
+      variant: tabbed
+      save_options: [save_draft, save_active, save_and_continue]
+
+    detail:
+      variant: product_showcase
+      image_zoom: true
+      variant_selector: true
+      quantity_input: true
+      stock_indicator: true
+
+  # E-Commerce Specific Styling
+  css_classes:
+    price: "h4 text-primary font-weight-bold"
+    sale_price: "h4 text-danger font-weight-bold"
+    compare_price: "text-muted text-decoration-line-through"
+    stock_status: "badge badge-success"
+    out_of_stock: "badge badge-danger"
+    low_stock: "badge badge-warning"
+
+# E-Commerce Analytics
+analytics:
+  track_views: true
+  track_cart_additions: true
+  track_purchases: true
+  track_search_queries: true
+  conversion_tracking: true
+
+  # Key Performance Indicators
+  kpis:
+    - conversion_rate
+    - average_order_value
+    - cart_abandonment_rate
+    - product_page_views
+    - inventory_turnover
+
+# Search and Filtering
+search:
+  engine: elasticsearch
+  index_fields: [name, description, sku, attributes, category.name, brand.name]
+  facets: [category, brand, price_range, rating, availability]
+  autocomplete: true
+  typo_tolerance: true
+
+# Product Recommendations
+recommendations:
+  enable: true
+  algorithms:
+    - collaborative_filtering    # "Customers who bought this also bought"
+    - content_based             # Similar products by attributes
+    - trending                  # Popular products
+    - cross_sell               # Complementary products
+    - upsell                   # Higher-value alternatives
+
+# Inventory Management Integration
+inventory:
+  multi_warehouse: true
+  real_time_sync: true
+  low_stock_alerts: true
+  reorder_points: automatic
+
+  integrations:
+    - warehouse_management_system
+    - dropshipping_suppliers
+    - marketplace_sync

@@ -1,0 +1,462 @@
+# DBBasic E-Commerce Template - Orders
+# Complete order management with workflow, payments, and fulfillment
+
+resource: orders
+database: ecommerce.db
+
+fields:
+  id:
+    type: primary_key
+  order_number:
+    type: string
+    unique: true
+    max_length: 20
+    ui:
+      readonly: true
+      help_text: "Auto-generated order number"
+
+  # Customer Information
+  customer_id:
+    type: foreign_key
+    references: customers
+    required: true
+  customer_email:
+    type: email
+    required: true
+  customer_phone:
+    type: string
+    max_length: 20
+
+  # Order Status and Workflow
+  status:
+    type: select
+    options: [pending, confirmed, processing, shipped, delivered, cancelled, refunded]
+    default: pending
+    required: true
+    ui:
+      variant: status_badge
+      colors:
+        pending: warning
+        confirmed: info
+        processing: primary
+        shipped: success
+        delivered: success
+        cancelled: danger
+        refunded: secondary
+
+  payment_status:
+    type: select
+    options: [pending, authorized, paid, partially_paid, failed, refunded, partially_refunded]
+    default: pending
+    required: true
+
+  fulfillment_status:
+    type: select
+    options: [pending, processing, shipped, partially_shipped, delivered, cancelled]
+    default: pending
+
+  # Financial Information
+  subtotal:
+    type: decimal
+    precision: 10
+    scale: 2
+    required: true
+    min: 0
+    ui:
+      prefix: "$"
+      readonly: true
+  tax_amount:
+    type: decimal
+    precision: 10
+    scale: 2
+    default: 0
+    min: 0
+    ui:
+      prefix: "$"
+  shipping_amount:
+    type: decimal
+    precision: 10
+    scale: 2
+    default: 0
+    min: 0
+    ui:
+      prefix: "$"
+  discount_amount:
+    type: decimal
+    precision: 10
+    scale: 2
+    default: 0
+    min: 0
+    ui:
+      prefix: "$"
+  total_amount:
+    type: decimal
+    precision: 10
+    scale: 2
+    required: true
+    min: 0
+    ui:
+      prefix: "$"
+      readonly: true
+
+  # Addresses
+  billing_address:
+    type: json
+    required: true
+    ui:
+      component: address_input
+      fields: [first_name, last_name, company, address1, address2, city, state, zip, country]
+
+  shipping_address:
+    type: json
+    required: true
+    ui:
+      component: address_input
+      copy_from_billing: true
+
+  # Shipping Information
+  shipping_method:
+    type: string
+    max_length: 100
+  shipping_carrier:
+    type: string
+    max_length: 50
+  tracking_number:
+    type: string
+    max_length: 100
+    ui:
+      help_text: "Package tracking number"
+  tracking_url:
+    type: url
+    ui:
+      help_text: "Link to track shipment"
+
+  # Payment Information
+  payment_method:
+    type: string
+    max_length: 50
+  payment_reference:
+    type: string
+    max_length: 100
+    ui:
+      help_text: "Payment gateway transaction ID"
+
+  # Order Metadata
+  notes:
+    type: text
+    ui:
+      component: textarea
+      rows: 3
+      placeholder: "Internal notes about this order"
+  customer_notes:
+    type: text
+    ui:
+      component: textarea
+      rows: 3
+      placeholder: "Customer's order notes or special instructions"
+
+  # Timestamps
+  order_date:
+    type: timestamp
+    auto_now_add: true
+  shipped_at:
+    type: timestamp
+  delivered_at:
+    type: timestamp
+  cancelled_at:
+    type: timestamp
+  created_at:
+    type: timestamp
+    auto_now_add: true
+  updated_at:
+    type: timestamp
+    auto_now: true
+
+# Complex Order Workflow Hooks
+hooks:
+  before_create:
+    - validate_order_data           # Comprehensive order validation
+    - calculate_taxes_and_shipping  # Real-time tax/shipping calculation
+    - validate_inventory_availability # Ensure all items are in stock
+    - apply_promotions_and_discounts # Calculate final pricing
+    - generate_order_number         # Create unique order identifier
+
+  after_create:
+    - reserve_inventory            # Hold inventory for this order
+    - send_order_confirmation      # Email confirmation to customer
+    - process_payment_authorization # Authorize payment method
+    - create_fulfillment_tasks     # Generate picking/packing tasks
+    - update_customer_analytics    # Track customer behavior
+    - trigger_fraud_detection      # Security screening
+
+  before_update:
+    - validate_status_transition   # Ensure valid workflow progression
+    - check_payment_requirements   # Verify payment for status changes
+    - validate_address_changes     # Prevent shipping after fulfillment
+    - calculate_refund_amounts     # Compute partial refunds
+
+  after_update:
+    - update_inventory_on_status   # Adjust stock based on status
+    - send_status_notifications    # Email/SMS customer updates
+    - sync_payment_status         # Update payment gateway
+    - update_shipping_tracking    # Sync with carrier APIs
+    - trigger_delivery_confirmation # Send delivery notifications
+    - process_automatic_reviews   # Request product reviews
+
+  before_delete:
+    - check_order_dependencies    # Prevent deletion of processed orders
+    - validate_cancellation_policy # Check if cancellation is allowed
+    - calculate_cancellation_fees # Determine any penalties
+
+  after_delete:
+    - restore_inventory_reservation # Return items to available stock
+    - process_payment_refund      # Refund customer payment
+    - cancel_shipping_labels      # Void shipping charges
+    - update_analytics_data       # Adjust sales metrics
+    - send_cancellation_notice    # Notify customer of cancellation
+
+# Advanced Order Management Permissions
+permissions:
+  create:
+    - role: customer              # Customers can place orders
+    - role: sales_rep             # Sales reps can create orders
+    - role: admin
+  read:
+    - condition: customer_owns_order # Customers see their own orders
+    - role: sales_rep
+    - role: fulfillment_team
+    - role: admin
+  update:
+    - condition: order_editable   # Only editable if status allows
+    - role: sales_rep
+    - role: admin
+  delete:
+    - condition: order_cancellable # Only if not yet processed
+    - role: admin
+
+# Comprehensive API Configuration
+api:
+  base_path: /api/orders
+  enable_bulk: true
+  enable_export: true
+  rate_limiting:
+    read: 1000/hour
+    write: 200/hour
+
+  # E-Commerce Specific Endpoints
+  custom_endpoints:
+    - path: /customer/{customer_id}
+      method: GET
+      filter: {customer_id: "{customer_id}"}
+      permissions: [customer_owns_account, staff]
+
+    - path: /{id}/items
+      method: GET
+      related: order_items
+      ordering: [product_name]
+
+    - path: /{id}/timeline
+      method: GET
+      action: get_order_timeline
+      returns: status_history
+
+    - path: /{id}/invoice
+      method: GET
+      action: generate_invoice
+      format: pdf
+
+    - path: /{id}/shipping-label
+      method: POST
+      action: generate_shipping_label
+      permissions: [fulfillment_team, admin]
+
+    - path: /{id}/track
+      method: GET
+      action: get_tracking_info
+      external_api: shipping_carriers
+
+    - path: /{id}/refund
+      method: POST
+      action: process_refund
+      permissions: [sales_rep, admin]
+      parameters: [amount, reason, refund_shipping]
+
+    - path: /analytics/summary
+      method: GET
+      action: get_order_analytics
+      permissions: [manager, admin]
+      cache_ttl: 300
+
+# Advanced Order Management Interface
+interface:
+  # Order List for Admin/Staff
+  list_display: [order_number, customer_email, total_amount, status, payment_status, order_date]
+  list_filters: [status, payment_status, fulfillment_status, order_date, shipping_method]
+  search_fields: [order_number, customer_email, billing_address, shipping_address]
+  ordering: [-order_date]
+  per_page: 50
+
+  # Detailed Order Form
+  form_layout:
+    - section: "Order Information"
+      fields: [order_number, customer_id, customer_email, order_date]
+      columns: 2
+      readonly: [order_number, order_date]
+
+    - section: "Status & Workflow"
+      fields: [status, payment_status, fulfillment_status]
+      columns: 3
+
+    - section: "Financial Summary"
+      fields: [subtotal, tax_amount, shipping_amount, discount_amount, total_amount]
+      columns: 5
+      readonly: [subtotal, total_amount]
+
+    - section: "Billing Address"
+      fields: [billing_address]
+      columns: 1
+
+    - section: "Shipping Information"
+      fields: [shipping_address, shipping_method, tracking_number, tracking_url]
+      columns: 2
+
+    - section: "Payment Details"
+      fields: [payment_method, payment_reference]
+      columns: 2
+
+    - section: "Notes"
+      fields: [customer_notes, notes]
+      columns: 1
+
+  # Customer Order View
+  customer_template: order_details
+  customer_layout:
+    header: [order_number, status, order_date, total_amount]
+    progress: [status_timeline]
+    items: [order_items_list]
+    addresses: [billing_address, shipping_address]
+    tracking: [shipping_info, tracking_link]
+    actions: [download_invoice, contact_support, cancel_order]
+
+# Advanced Bootstrap E-Commerce UI
+ui:
+  theme: bootstrap
+  variant: ecommerce_orders
+
+  components:
+    list:
+      variant: table-responsive
+      density: comfortable
+      status_indicators: true
+      bulk_actions: [export, mark_shipped, mark_delivered, send_notifications]
+
+    form:
+      variant: workflow
+      status_workflow: true
+      address_autocomplete: true
+      payment_integration: true
+
+    detail:
+      variant: order_summary
+      timeline: true
+      printable: true
+      real_time_updates: true
+
+  # Order-Specific Styling
+  css_classes:
+    order_total: "h3 text-success font-weight-bold"
+    status_pending: "badge badge-warning"
+    status_confirmed: "badge badge-info"
+    status_processing: "badge badge-primary"
+    status_shipped: "badge badge-success"
+    status_delivered: "badge badge-success"
+    status_cancelled: "badge badge-danger"
+    payment_paid: "text-success"
+    payment_pending: "text-warning"
+    payment_failed: "text-danger"
+
+# Order Workflow State Machine
+workflow:
+  states:
+    pending:
+      transitions: [confirmed, cancelled]
+      permissions: [customer, sales_rep, admin]
+
+    confirmed:
+      transitions: [processing, cancelled]
+      permissions: [sales_rep, admin]
+      actions: [authorize_payment, reserve_inventory]
+
+    processing:
+      transitions: [shipped, cancelled]
+      permissions: [fulfillment_team, admin]
+      actions: [pick_items, pack_order, generate_shipping_label]
+
+    shipped:
+      transitions: [delivered, cancelled]
+      permissions: [carrier_webhook, admin]
+      actions: [send_tracking_info, schedule_delivery]
+
+    delivered:
+      transitions: [refunded]
+      permissions: [carrier_webhook, customer_confirmation, admin]
+      actions: [request_review, update_analytics]
+
+    cancelled:
+      transitions: []
+      permissions: [customer_if_early, admin]
+      actions: [process_refund, restore_inventory]
+
+# Integration Configuration
+integrations:
+  payment_gateways:
+    - stripe
+    - paypal
+    - square
+
+  shipping_carriers:
+    - ups
+    - fedex
+    - usps
+    - dhl
+
+  tax_services:
+    - avalara
+    - taxjar
+
+  analytics:
+    - google_analytics_ecommerce
+    - facebook_pixel
+
+  email_services:
+    - sendgrid
+    - mailchimp
+
+# Order Analytics and Reporting
+analytics:
+  track_conversion_funnel: true
+  track_order_value: true
+  track_customer_lifetime_value: true
+  track_fulfillment_performance: true
+
+  reports:
+    - daily_orders_summary
+    - weekly_sales_report
+    - monthly_customer_analysis
+    - inventory_impact_report
+    - shipping_cost_analysis
+
+# Fraud Detection
+fraud_detection:
+  enable: true
+  risk_factors:
+    - unusual_order_patterns
+    - high_value_orders
+    - mismatched_billing_shipping
+    - multiple_failed_payments
+    - velocity_checks
+
+  actions:
+    low_risk: auto_approve
+    medium_risk: manual_review
+    high_risk: auto_hold

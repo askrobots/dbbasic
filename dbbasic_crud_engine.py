@@ -519,7 +519,196 @@ class CRUDEngine:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
             return HTMLResponse(self.resources[resource_name].generate_form_html(record_id))
 
-        # API routes
+        # Template Marketplace Deployment API - must come before generic routes
+        @self.app.get("/api/templates")
+        async def api_get_templates():
+            """Get list of available templates from the templates directory"""
+            try:
+                from pathlib import Path
+                templates_dir = Path("templates")
+
+                if not templates_dir.exists():
+                    return {"templates": [], "categories": []}
+
+                templates = []
+                categories = set()
+
+                # Scan template directories
+                for category_dir in templates_dir.iterdir():
+                    if category_dir.is_dir() and not category_dir.name.startswith('.'):
+                        category_name = category_dir.name
+                        categories.add(category_name)
+
+                        # Scan template files in category
+                        for template_file in category_dir.glob("*_crud.yaml"):
+                            try:
+                                with open(template_file, 'r') as f:
+                                    template_config = yaml.safe_load(f)
+
+                                resource_name = template_config.get('resource', template_file.stem.replace('_crud', ''))
+
+                                template_info = {
+                                    "id": f"{category_name}/{template_file.stem}",
+                                    "name": resource_name.replace('_', ' ').title(),
+                                    "description": f"Complete {resource_name} management system",
+                                    "category": category_name,
+                                    "file_path": str(template_file),
+                                    "fields_count": len(template_config.get('fields', {})),
+                                    "has_hooks": bool(template_config.get('hooks', {})),
+                                    "has_permissions": bool(template_config.get('permissions', {})),
+                                    "ui_theme": template_config.get('ui', {}).get('theme', 'bootstrap')
+                                }
+                                templates.append(template_info)
+
+                            except Exception as e:
+                                logger.warning(f"Error reading template {template_file}: {e}")
+
+                return {
+                    "templates": templates,
+                    "categories": sorted(list(categories))
+                }
+
+            except Exception as e:
+                logger.error(f"Error getting templates: {e}")
+                raise HTTPException(500, f"Error getting templates: {e}")
+
+        @self.app.post("/api/templates/deploy")
+        async def api_deploy_template(
+            template_id: str = Query(..., description="Template ID in format category/template"),
+            deployment_config: dict = {}
+        ):
+            """Deploy a template by copying it to the current directory and loading it"""
+            try:
+                from pathlib import Path
+                import shutil
+                import time
+
+                # Parse template_id (e.g., "blog/posts_crud")
+                if '/' not in template_id:
+                    raise HTTPException(400, "Invalid template_id format. Expected: category/template")
+
+                category, template_name = template_id.split('/', 1)
+                template_file = Path(f"templates/{category}/{template_name}.yaml")
+
+                if not template_file.exists():
+                    raise HTTPException(404, f"Template not found: {template_id}")
+
+                # Generate unique resource name for deployment
+                base_name = deployment_config.get('resource_name', template_name.replace('_crud', ''))
+                timestamp = str(int(time.time()))[-6:]  # Last 6 digits of timestamp
+                deployed_name = f"{base_name}_{timestamp}"
+                deployed_file = Path(f"{deployed_name}_crud.yaml")
+
+                # Copy template file to current directory
+                shutil.copy2(template_file, deployed_file)
+
+                # Customize the deployed template
+                with open(deployed_file, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # Update resource name and database
+                config['resource'] = deployed_name
+                if 'database' in config:
+                    original_db = config['database']
+                    # Create unique database name
+                    db_name = f"{deployed_name}.db"
+                    config['database'] = db_name
+
+                # Apply any custom configuration
+                if deployment_config:
+                    # Allow customizing certain fields
+                    if 'title_override' in deployment_config:
+                        # Find title-like fields and update descriptions
+                        for field_name, field_config in config.get('fields', {}).items():
+                            if field_name in ['title', 'name'] and 'ui' in field_config:
+                                field_config['ui']['placeholder'] = deployment_config['title_override']
+
+                # Write customized config back
+                with open(deployed_file, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                # Load the new template into the engine
+                self.load_config(str(deployed_file))
+
+                logger.info(f"✅ Template deployed: {template_id} → {deployed_name}")
+
+                return {
+                    "success": True,
+                    "resource_name": deployed_name,
+                    "file_path": str(deployed_file),
+                    "url": f"http://localhost:8005/{deployed_name}",
+                    "api_url": f"http://localhost:8005/api/{deployed_name}",
+                    "message": f"Template {template_id} deployed successfully as {deployed_name}"
+                }
+
+            except Exception as e:
+                logger.error(f"❌ Error deploying template {template_id}: {e}")
+                raise HTTPException(500, f"Error deploying template: {e}")
+
+        @self.app.get("/api/templates/preview")
+        async def api_preview_template(template_id: str = Query(..., description="Template ID in format category/template")):
+            """Get a preview of a template's configuration and UI"""
+            try:
+                from pathlib import Path
+
+                # Parse template_id
+                if '/' not in template_id:
+                    raise HTTPException(400, "Invalid template_id format. Expected: category/template")
+
+                category, template_name = template_id.split('/', 1)
+                template_file = Path(f"templates/{category}/{template_name}.yaml")
+
+                if not template_file.exists():
+                    raise HTTPException(404, f"Template not found: {template_id}")
+
+                # Read template configuration
+                with open(template_file, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # Generate preview data
+                resource_name = config.get('resource', template_name.replace('_crud', ''))
+                fields = config.get('fields', {})
+
+                # Create sample preview data structure
+                preview_data = {
+                    "resource_name": resource_name,
+                    "fields": list(fields.keys()),
+                    "field_types": {name: field.get('type', 'string') for name, field in fields.items()},
+                    "ui_components": {},
+                    "has_hooks": bool(config.get('hooks', {})),
+                    "hook_events": list(config.get('hooks', {}).keys()),
+                    "permissions": config.get('permissions', {}),
+                    "ui_theme": config.get('ui', {}).get('theme', 'bootstrap'),
+                    "sample_form_fields": []
+                }
+
+                # Generate UI component preview
+                for field_name, field_config in fields.items():
+                    ui_config = field_config.get('ui', {})
+                    component_type = ui_config.get('component', 'input')
+
+                    preview_data['ui_components'][field_name] = {
+                        "type": component_type,
+                        "placeholder": ui_config.get('placeholder', ''),
+                        "help_text": ui_config.get('help_text', ''),
+                        "required": field_config.get('required', False)
+                    }
+
+                    # Sample form field for preview
+                    preview_data['sample_form_fields'].append({
+                        "name": field_name,
+                        "label": field_name.replace('_', ' ').title(),
+                        "type": component_type,
+                        "value": f"Sample {field_name}"
+                    })
+
+                return preview_data
+
+            except Exception as e:
+                logger.error(f"❌ Error previewing template {template_id}: {e}")
+                raise HTTPException(500, f"Error previewing template: {e}")
+
+        # API routes for resources
         @self.app.get("/api/{resource_name}")
         async def api_list_records(resource_name: str, limit: int = Query(25), offset: int = Query(0), x_user: str = Header(None)):
             """Get records for a resource"""
@@ -1042,6 +1231,7 @@ class CRUDEngine:
             except WebSocketDisconnect:
                 if resource_name in self.websocket_connections:
                     self.websocket_connections[resource_name].remove(websocket)
+
 
     def _populate_magic_fields(self, resource: 'CRUDResource', data: dict, operation: str, user_id: str = None) -> dict:
         """Auto-populate magic fields like timestamps and user tracking"""

@@ -1,0 +1,61 @@
+# DBBasic CRM Template - Leads Management
+resource: leads
+database: crm.db
+
+fields:
+  id:
+    type: primary_key
+  first_name:
+    type: string
+    required: true
+    max_length: 50
+  last_name:
+    type: string
+    required: true
+    max_length: 50
+  email:
+    type: email
+    unique: true
+    required: true
+  phone:
+    type: string
+    max_length: 20
+  company:
+    type: string
+    max_length: 100
+  job_title:
+    type: string
+    max_length: 100
+  status:
+    type: select
+    options: [new, contacted, qualified, proposal, negotiation, won, lost]
+    default: new
+  source:
+    type: select
+    options: [website, email, phone, referral, social_media, advertisement]
+  value:
+    type: decimal
+    precision: 10
+    scale: 2
+    ui:
+      prefix: "$"
+  assigned_to:
+    type: foreign_key
+    references: users
+  created_at:
+    type: timestamp
+    auto_now_add: true
+
+hooks:
+  before_create: validate_lead_data
+  after_create: assign_lead_automatically
+  before_update: log_status_change
+  after_update: trigger_follow_up_actions
+
+ui:
+  theme: bootstrap
+  variant: crm
+  components:
+    list:
+      variant: kanban
+      group_by: status

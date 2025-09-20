@@ -1,0 +1,72 @@
+# DBBasic Project Management Template - Tasks
+resource: tasks
+database: projects.db
+
+fields:
+  id:
+    type: primary_key
+  title:
+    type: string
+    required: true
+    max_length: 200
+    searchable: true
+  description:
+    type: text
+    ui:
+      component: textarea
+      rows: 4
+  status:
+    type: select
+    options: [todo, in_progress, review, testing, done, blocked]
+    default: todo
+    ui:
+      variant: kanban_card
+  priority:
+    type: select
+    options: [low, medium, high, critical]
+    default: medium
+  project_id:
+    type: foreign_key
+    references: projects
+    required: true
+  assigned_to:
+    type: foreign_key
+    references: users
+  estimated_hours:
+    type: decimal
+    precision: 5
+    scale: 2
+    ui:
+      suffix: "hrs"
+  actual_hours:
+    type: decimal
+    precision: 5
+    scale: 2
+    default: 0
+    ui:
+      suffix: "hrs"
+  due_date:
+    type: date
+  completed_at:
+    type: timestamp
+  created_at:
+    type: timestamp
+    auto_now_add: true
+  updated_at:
+    type: timestamp
+    auto_now: true
+
+hooks:
+  before_create: validate_task_data
+  after_create: notify_assignee
+  before_update: track_time_changes
+  after_update: update_project_progress
+
+ui:
+  theme: bootstrap
+  variant: kanban
+  components:
+    list:
+      variant: kanban_board
+      group_by: status
+      drag_drop: true

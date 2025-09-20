@@ -1,0 +1,291 @@
+resource: posts_338905
+database: posts_338905.db
+fields:
+  id:
+    type: primary_key
+  title:
+    type: string
+    required: true
+    searchable: true
+    max_length: 200
+    ui:
+      placeholder: Enter an engaging blog post title
+      help_text: Keep it under 60 characters for best SEO
+  slug:
+    type: string
+    unique: true
+    max_length: 200
+    ui:
+      help_text: Auto-generated from title, used in URLs
+  content:
+    type: text
+    required: true
+    ui:
+      component: rich_editor
+      toolbar:
+      - bold
+      - italic
+      - link
+      - image
+      - code
+      - quote
+      height: 400
+  excerpt:
+    type: text
+    max_length: 500
+    ui:
+      component: textarea
+      rows: 3
+      placeholder: Brief summary for previews and SEO
+  status:
+    type: select
+    options:
+    - draft
+    - published
+    - scheduled
+    - archived
+    default: draft
+    required: true
+    ui:
+      variant: badge
+      colors:
+        draft: secondary
+        published: success
+        scheduled: warning
+        archived: dark
+  category_id:
+    type: foreign_key
+    references: categories
+    required: true
+    ui:
+      component: select
+      searchable: true
+  author_id:
+    type: foreign_key
+    references: users
+    required: true
+    ui:
+      default_current_user: true
+  featured_image:
+    type: file
+    accept:
+    - jpg
+    - jpeg
+    - png
+    - webp
+    max_size: 5MB
+    ui:
+      preview: true
+      aspect_ratio: '16:9'
+  seo_title:
+    type: string
+    max_length: 60
+    ui:
+      help_text: Custom SEO title (defaults to post title)
+  seo_description:
+    type: string
+    max_length: 160
+    ui:
+      component: textarea
+      rows: 2
+      help_text: Meta description for search engines
+  tags:
+    type: many_to_many
+    references: tags
+    ui:
+      component: tag_input
+      autocomplete: true
+  view_count:
+    type: integer
+    default: 0
+    ui:
+      readonly: true
+  published_at:
+    type: timestamp
+    ui:
+      component: datetime_picker
+      help_text: Leave blank to publish immediately
+  created_at:
+    type: timestamp
+    auto_now_add: true
+  updated_at:
+    type: timestamp
+    auto_now: true
+hooks:
+  before_create:
+  - validate_post_content
+  - generate_slug_from_title
+  - extract_excerpt_if_empty
+  after_create:
+  - generate_seo_metadata
+  - create_social_media_posts
+  - notify_subscribers
+  before_update:
+  - preserve_published_date
+  - validate_slug_uniqueness
+  after_update:
+  - invalidate_post_cache
+  - update_sitemap
+  - reindex_search
+  before_delete:
+  - check_post_dependencies
+  - backup_post_content
+  after_delete:
+  - cleanup_post_assets
+  - update_category_counts
+  - purge_cached_content
+permissions:
+  create: authenticated
+  read:
+    published: public
+    draft: owner_or_admin
+  update: owner_or_admin
+  delete: owner_or_admin
+api:
+  base_path: /api/posts
+  enable_bulk: true
+  enable_export: true
+  rate_limiting:
+    read: 1000/hour
+    write: 100/hour
+  custom_endpoints:
+  - path: /published
+    method: GET
+    filter:
+      status: published
+  - path: /by-category/{category_slug}
+    method: GET
+    join: categories
+  - path: /{slug}/increment-views
+    method: POST
+    action: increment_view_count
+interface:
+  list_display:
+  - title
+  - author
+  - category
+  - status
+  - view_count
+  - published_at
+  list_filters:
+  - status
+  - category_id
+  - author_id
+  - created_at
+  search_fields:
+  - title
+  - content
+  - excerpt
+  ordering:
+  - -published_at
+  - -created_at
+  per_page: 20
+  form_layout:
+  - section: Content
+    fields:
+    - title
+    - slug
+    - content
+    - excerpt
+    columns: 1
+  - section: Publishing
+    fields:
+    - status
+    - category_id
+    - published_at
+    columns: 3
+  - section: Media & SEO
+    fields:
+    - featured_image
+    - seo_title
+    - seo_description
+    - tags
+    columns: 2
+  detail_template: blog_post
+  detail_layout:
+    header:
+    - title
+    - author
+    - published_at
+    - category
+    content:
+    - featured_image
+    - content
+    sidebar:
+    - tags
+    - related_posts
+    - social_share
+    footer:
+    - author_bio
+    - comments
+ui:
+  theme: bootstrap
+  variant: blog
+  components:
+    list:
+      variant: table-striped
+      hover: true
+      responsive: true
+      actions:
+      - view
+      - edit
+      - delete
+      - duplicate
+    form:
+      variant: horizontal
+      label_width: 3
+      submit_button:
+        variant: primary
+        size: lg
+        text: Publish Post
+      cancel_button:
+        variant: outline-secondary
+        text: Save Draft
+    detail:
+      variant: article
+      typography: true
+      syntax_highlighting: true
+      social_sharing:
+      - twitter
+      - facebook
+      - linkedin
+      - email
+  layout:
+    container: true
+    sidebar: true
+    header_nav: true
+    footer: true
+  css_classes:
+    post_title: display-4 font-weight-bold
+    post_meta: text-muted small
+    post_content: lead
+    category_badge: badge badge-primary
+    tag_badge: badge badge-outline-secondary
+seo:
+  auto_generate: true
+  title_template: '{title} | My Awesome Blog'
+  description_template: '{excerpt}'
+  open_graph:
+    type: article
+    image: '{featured_image}'
+    locale: en_US
+  twitter_card:
+    type: summary_large_image
+    site: '@myblog'
+  structured_data:
+    type: BlogPosting
+    author: '{author.name}'
+    publisher: My Awesome Blog
+analytics:
+  track_views: true
+  track_reading_time: true
+  track_social_shares: true
+  track_user_engagement: true
+recommendations:
+  enable: true
+  algorithm: content_similarity
+  max_results: 5
+  factors:
+  - category
+  - tags
+  - author

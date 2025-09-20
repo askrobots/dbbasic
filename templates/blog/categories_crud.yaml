@@ -1,0 +1,59 @@
+# DBBasic Blog Template - Categories
+resource: categories
+database: blog.db
+
+fields:
+  id:
+    type: primary_key
+  name:
+    type: string
+    required: true
+    unique: true
+    max_length: 100
+    searchable: true
+  slug:
+    type: string
+    unique: true
+    max_length: 100
+  description:
+    type: text
+    ui:
+      component: textarea
+      rows: 3
+  color:
+    type: string
+    default: "#007bff"
+    ui:
+      component: color_picker
+  icon:
+    type: string
+    ui:
+      component: icon_picker
+  post_count:
+    type: integer
+    default: 0
+    ui:
+      readonly: true
+  created_at:
+    type: timestamp
+    auto_now_add: true
+
+hooks:
+  before_create: generate_slug_from_name
+  after_create: update_navigation_menu
+  after_update: invalidate_category_cache
+  after_delete: reassign_orphaned_posts
+
+permissions:
+  create: admin_only
+  read: public
+  update: admin_only
+  delete: admin_only
+
+ui:
+  theme: bootstrap
+  components:
+    list:
+      variant: card-columns
+    form:
+      variant: simple
