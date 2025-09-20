@@ -17,8 +17,10 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
         """Render a complete Bootstrap form"""
         method = data.get('method', 'POST')
         action = data.get('action', '#')
+        form_id = data.get('id', '')
         fields = data.get('fields', [])
         buttons = data.get('buttons', [])
+        submit = data.get('submit', None)
 
         fields_html = []
         for field in fields:
@@ -35,10 +37,21 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
             elif field_type == 'radio_group':
                 fields_html.append(self._render_radio_group(field))
 
-        buttons_html = ' '.join([self.render_button(btn) for btn in buttons])
+        # Handle submit button
+        buttons_html = ''
+        if submit:
+            icon = f'<i class="{submit.get("icon", "")} me-2"></i>' if submit.get('icon') else ''
+            submit_btn = f'''<button type="submit" class="btn btn-{submit.get('variant', 'primary')}">
+                {icon}{submit.get('text', 'Submit')}
+            </button>'''
+            buttons_html = submit_btn
+        elif buttons:
+            buttons_html = ' '.join([self.render_button(btn) for btn in buttons])
+
+        id_attr = f'id="{form_id}"' if form_id else ''
 
         return f"""
-        <form method="{method}" action="{action}">
+        <form method="{method}" action="{action}" {id_attr}>
             {''.join(fields_html)}
             <div class="mt-3">
                 {buttons_html}

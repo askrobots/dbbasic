@@ -138,58 +138,114 @@ def get_master_layout(
     return page
 
 def get_footer() -> Dict:
-    """Generate unified footer"""
+    """Generate professional unified footer"""
+    # Build service links
+    service_links = []
+    for key, service in SERVICES.items():
+        url = f"http://localhost:{service['port']}"
+        if 'path' in service:
+            url += service['path']
+        icon = service.get('icon', 'bi-circle')
+        service_links.append(
+            f'<li class="mb-2"><a href="{url}" class="text-decoration-none text-light opacity-75">'
+            f'<i class="{icon} me-2"></i>{service["name"]}</a></li>'
+        )
+
     return {
-        'type': 'container',
-        'fluid': True,
-        'class': 'bg-dark text-light py-4 mt-5',
-        'children': [
-            {
-                'type': 'container',
-                'children': [
-                    {
-                        'type': 'row',
-                        'children': [
-                            {
-                                'type': 'col',
-                                'size': 4,
-                                'children': [
-                                    '<h5>DBBasic</h5>',
-                                    '<p class="text-muted">Config-driven application platform</p>'
-                                ]
-                            },
-                            {
-                                'type': 'col',
-                                'size': 4,
-                                'children': [
-                                    '<h6>Services</h6>',
-                                    {
-                                        'type': 'list',
-                                        'class': 'list-unstyled',
-                                        'items': [
-                                            f'<a href="http://localhost:{s["port"]}" class="text-muted">{s["name"]}</a>'
-                                            for s in SERVICES.values()
-                                        ]
-                                    }
-                                ]
-                            },
-                            {
-                                'type': 'col',
-                                'size': 4,
-                                'children': [
-                                    '<h6>Performance</h6>',
-                                    '<p class="text-muted">🚀 402M rows/sec with DuckDB</p>',
-                                    '<p class="text-muted">⚡ Post-Code Era</p>',
-                                    '<p class="text-muted">🤖 AI-Enhanced</p>'
-                                ]
-                            }
-                        ]
-                    },
-                    '<hr class="border-secondary">',
-                    '<p class="text-center text-muted mb-0">© 2024 DBBasic - Everything is Data</p>'
-                ]
-            }
-        ]
+        'type': 'raw',
+        'content': f'''
+        <footer class="mt-auto" style="background: linear-gradient(135deg, #1a1a2e 0%, #0f172a 100%); margin-top: 5rem !important;">
+            <div class="container-fluid py-5">
+                <div class="row g-4 px-4">
+                    <!-- Brand Section -->
+                    <div class="col-lg-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-primary rounded-circle p-2 me-2">
+                                <i class="bi bi-cpu-fill text-white fs-5"></i>
+                            </div>
+                            <h4 class="text-white mb-0">DBBasic</h4>
+                            <span class="badge bg-success ms-2">v1.0</span>
+                        </div>
+                        <p class="text-light opacity-75">
+                            Revolutionary config-driven platform. Build production apps with YAML & AI.
+                        </p>
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="#" class="btn btn-outline-light btn-sm">
+                                <i class="bi bi-github"></i> GitHub
+                            </a>
+                            <a href="#" class="btn btn-outline-light btn-sm">
+                                <i class="bi bi-book"></i> Docs
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Services -->
+                    <div class="col-lg-2 col-md-6">
+                        <h6 class="text-white mb-3">Services</h6>
+                        <ul class="list-unstyled">
+                            {''.join(service_links)}
+                        </ul>
+                    </div>
+
+                    <!-- Resources -->
+                    <div class="col-lg-3 col-md-6">
+                        <h6 class="text-white mb-3">Resources</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none text-light opacity-75">
+                                    <i class="bi bi-file-text me-2"></i>Documentation
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none text-light opacity-75">
+                                    <i class="bi bi-code-square me-2"></i>API Reference
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none text-light opacity-75">
+                                    <i class="bi bi-play-circle me-2"></i>Tutorials
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="col-lg-3">
+                        <h6 class="text-white mb-3">Performance</h6>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-lightning-fill text-warning me-2"></i>
+                                <span class="text-light opacity-75">402M rows/sec</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-hdd-stack text-info me-2"></i>
+                                <span class="text-light opacity-75">DuckDB Engine</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-gear-fill text-success me-2"></i>
+                                <span class="text-light opacity-75">90% Token Reduction</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-magic text-primary me-2"></i>
+                                <span class="text-light opacity-75">AI-Powered</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Bar -->
+            <div class="border-top border-dark bg-black bg-opacity-25">
+                <div class="container-fluid py-3">
+                    <div class="text-center">
+                        <p class="text-light opacity-50 mb-0 small">
+                            © 2024 DBBasic - Post-Code Era Platform • Built with <i class="bi bi-heart-fill text-danger"></i> for developers
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+        '''
     }
 
 def get_service_dashboard() -> Dict:

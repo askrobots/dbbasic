@@ -74,6 +74,12 @@ class UIRenderer(ABC):
                 return self.render_hero(data)
             elif component_type == 'form':
                 return self.render_form(data)
+            elif component_type == 'raw':
+                # Raw HTML content - pass through directly
+                return data.get('content', '')
+            elif component_type == 'footer':
+                # Footer is just raw HTML
+                return data.get('content', '')
             elif 'components' in data:
                 return self.render(data['components'])
             elif 'items' in data:
@@ -128,19 +134,94 @@ class BootstrapRenderer(UIRenderer):
 
     def render_navbar(self, data: Dict) -> str:
         brand = data.get('brand', 'DBBasic')
-        links = []
+        links = data.get('links', [])
+        variant = data.get('variant', 'dark')
+        search = data.get('search', True)
+        user_menu = data.get('user_menu', True)
+
+        nav_links = []
         for link in data.get('links', []):
             if isinstance(link, str):
-                links.append(f'<a class="nav-link" href="/{link.lower()}">{link}</a>')
+                nav_links.append(f'<a class="nav-link" href="/{link.lower()}">{link}</a>')
             else:
-                links.append(f'<a class="nav-link" href="{link["url"]}">{link["text"]}</a>')
+                active_class = 'active' if link.get('active') else ''
+                icon = f'<i class="{link.get("icon", "")} me-1"></i> ' if link.get('icon') else ''
+                nav_links.append(
+                    f'<li class="nav-item"><a class="nav-link {active_class}" href="{link["url"]}">{icon}{link["text"]}</a></li>'
+                )
+
+        # Professional dark navbar with gradient
+        navbar_style = """
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-bottom: 2px solid #3b82f6;
+        """ if variant == 'dark' else ""
+
+        search_html = '''
+        <form class="d-flex ms-auto me-3" role="search">
+            <div class="input-group">
+                <input class="form-control form-control-sm" type="search"
+                       placeholder="Search services..." style="min-width: 200px;">
+                <button class="btn btn-outline-light btn-sm" type="submit">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+        ''' if search else ''
+
+        user_menu_html = '''
+        <div class="dropdown">
+            <button class="btn btn-link text-white dropdown-toggle text-decoration-none"
+                    type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-person-circle fs-5"></i>
+                <span class="ms-1 d-none d-md-inline">Admin</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li><h6 class="dropdown-header">Account</h6></li>
+                <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>Profile</a></li>
+                <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#"><i class="bi bi-file-text me-2"></i>Documentation</a></li>
+                <li><a class="dropdown-item" href="#"><i class="bi bi-github me-2"></i>GitHub</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li>
+            </ul>
+        </div>
+        ''' if user_menu else ''
 
         return f"""
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="#">{brand}</a>
-                <div class="navbar-nav ms-auto">
-                    {' '.join(links)}
+        <nav class="navbar navbar-expand-lg navbar-dark shadow-lg" style="{navbar_style}">
+            <div class="container-fluid px-3">
+                <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
+                    <div class="bg-white text-primary rounded-circle p-2 me-2">
+                        <i class="bi bi-cpu-fill"></i>
+                    </div>
+                    <span class="fs-4">{brand}</span>
+                    <span class="badge bg-success ms-2">v1.0</span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarMain">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-4">
+                        {' '.join(nav_links)}
+                    </ul>
+
+                    {search_html}
+
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-warning text-dark me-3">
+                            <i class="bi bi-lightning-fill"></i> 402M rows/sec
+                        </span>
+                        <button class="btn btn-link text-white position-relative me-3">
+                            <i class="bi bi-bell fs-5"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                3
+                            </span>
+                        </button>
+                        {user_menu_html}
+                    </div>
                 </div>
             </div>
         </nav>"""

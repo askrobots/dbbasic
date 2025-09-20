@@ -547,6 +547,39 @@ class CRUDEngine:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
             return HTMLResponse(self.resources[resource_name].generate_form_html(record_id))
 
+        # API Endpoints - must come before generic routes
+        @self.app.get("/api/models")
+        async def api_get_models():
+            """Get list of active CRUD models/resources"""
+            models = []
+            for resource_name, resource in self.resources.items():
+                try:
+                    # Get record count
+                    count = len(resource.db.execute(f"SELECT COUNT(*) FROM {resource_name}").fetchall())
+
+                    # Get fields from config
+                    fields = list(resource.config.get('fields', {}).keys())
+
+                    models.append({
+                        'name': resource_name,
+                        'title': resource.config.get('title', resource_name.title()),
+                        'description': resource.config.get('description', f'{resource_name} management'),
+                        'fields': fields,
+                        'field_count': len(fields),
+                        'record_count': count,
+                        'database': resource.config.get('database', f'{resource_name}.db'),
+                        'hooks': list(resource.config.get('hooks', {}).keys()),
+                        'endpoint': f'/{resource_name}'
+                    })
+                except Exception as e:
+                    logger.warning(f"Error getting model info for {resource_name}: {e}")
+                    models.append({
+                        'name': resource_name,
+                        'error': str(e)
+                    })
+
+            return models
+
         # Template Marketplace Deployment API - must come before generic routes
         @self.app.get("/api/templates")
         async def api_get_templates():
