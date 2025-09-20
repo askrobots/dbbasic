@@ -1,5 +1,7 @@
 # DBBasic - This Isn't Development Anymore
 
+![DBBasic - The Crate Engine for Web Apps](assets/dbbasic-crate-engine.png)
+
 > **"No code is faster than no code."** - And with DBBasic, you write no code, just config.
 
 **Process 402 Million Rows Per Second • Replace Any Web Framework • 50 Lines Replaces 50,000**
