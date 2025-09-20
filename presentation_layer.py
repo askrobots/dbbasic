@@ -231,6 +231,7 @@ class BootstrapRenderer(UIRenderer):
         category = data.get('category', '')
         description = data.get('description', '')
         body = data.get('body', '')
+        footer = data.get('footer')
         actions = []
 
         for action in data.get('actions', []):
@@ -258,8 +259,23 @@ class BootstrapRenderer(UIRenderer):
                 </div>
                 {content}
             </div>
-            {f'<div class="card-footer bg-transparent"><div class="d-grid gap-2 d-flex justify-content-end">{" ".join(actions)}</div></div>' if actions else ''}
+            {self._render_card_footer(footer, actions)}
         </div>"""
+
+    def _render_card_footer(self, footer, actions):
+        """Render card footer with either footer object or actions list"""
+        if footer and isinstance(footer, dict):
+            onclick = footer.get('onclick', '')
+            variant = footer.get('variant', 'primary')
+            text = footer.get('text', 'Button')
+            return f'''<div class="card-footer bg-transparent">
+                <div class="d-grid">
+                    <button class="btn btn-{variant}" onclick="{onclick}">{text}</button>
+                </div>
+            </div>'''
+        elif actions:
+            return f'<div class="card-footer bg-transparent"><div class="d-grid gap-2 d-flex justify-content-end">{" ".join(actions)}</div></div>'
+        return ''
 
     def render_button(self, data: Dict) -> str:
         return f'<button class="btn btn-{data.get("variant", "primary")}">{data.get("text", "Button")}</button>'
@@ -295,11 +311,7 @@ class BootstrapRenderer(UIRenderer):
         </style>"""
 
     def _get_scripts(self) -> str:
-        return """
-        <script>
-            function deployTemplate(id) { alert('Deploying: ' + id); }
-            function previewTemplate(id) { alert('Preview: ' + id); }
-        </script>"""
+        return ""  # Scripts are now handled by individual components
 
 
 # ============================================
@@ -323,10 +335,6 @@ class TailwindRenderer(UIRenderer):
 </head>
 <body class="bg-gray-50">
     {components}
-    <script>
-        function deployTemplate(id) {{ alert('Deploying: ' + id); }}
-        function previewTemplate(id) {{ alert('Preview: ' + id); }}
-    </script>
 </body>
 </html>"""
 

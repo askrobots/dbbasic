@@ -36,9 +36,16 @@ SERVICES = {
     },
     'event_store': {
         'name': 'Event Store',
-        'port': 8006,
+        'port': 8007,
         'icon': 'bi-journal-text',
         'description': 'Event sourcing & audit trails',
+        'status': 'running'
+    },
+    'test_runner': {
+        'name': 'Test Runner',
+        'port': 8006,
+        'icon': 'bi-speedometer2',
+        'description': 'Testing at 402M rows/sec',
         'status': 'running'
     },
     'templates': {

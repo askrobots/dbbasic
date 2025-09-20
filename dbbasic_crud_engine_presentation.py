@@ -158,11 +158,11 @@ def get_crud_dashboard():
                                 <td>${model.hooks ? Object.keys(model.hooks).length : 0}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="/models/${model.name}" class="btn btn-primary">
+                                        <a href="/${model.name}" class="btn btn-primary">
                                             <i class="bi bi-eye"></i> View
                                         </a>
-                                        <a href="/models/${model.name}/edit" class="btn btn-warning">
-                                            <i class="bi bi-pencil"></i> Edit
+                                        <a href="/${model.name}/create" class="btn btn-success">
+                                            <i class="bi bi-plus"></i> Add
                                         </a>
                                     </div>
                                 </td>

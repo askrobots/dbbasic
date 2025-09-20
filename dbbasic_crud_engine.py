@@ -22,7 +22,8 @@ from watchdog.events import FileSystemEventHandler
 import duckdb
 
 from dbbasic_crud_engine_presentation import get_crud_dashboard, get_template_marketplace
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File, Header
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File, Header, Request
+from fastapi.responses import RedirectResponse
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -451,6 +452,105 @@ class CRUDEngine:
             html_content = PresentationLayer.render(ui_data, 'bootstrap')
             return HTMLResponse(content=html_content)
 
+        @self.app.get("/models/new")
+        async def new_model_form():
+            """Show form for creating a new CRUD model"""
+            from dbbasic_unified_ui import get_master_layout
+
+            ui_data = get_master_layout(
+                title='Create New Model - Data Service',
+                service_name='data',
+                content=[
+                    {
+                        'type': 'breadcrumb',
+                        'items': [
+                            {'text': 'Data Service', 'url': '/'},
+                            {'text': 'Create New Model', 'active': True}
+                        ]
+                    },
+                    {
+                        'type': 'card',
+                        'title': '📝 Create New CRUD Model',
+                        'body': {
+                            'type': 'form',
+                            'action': '/api/models/create',
+                            'method': 'POST',
+                            'fields': [
+                                {
+                                    'type': 'text',
+                                    'name': 'resource',
+                                    'label': 'Resource Name',
+                                    'placeholder': 'e.g., products, orders, customers',
+                                    'required': True,
+                                    'help': 'Lowercase plural name for your model'
+                                },
+                                {
+                                    'type': 'text',
+                                    'name': 'title',
+                                    'label': 'Display Title',
+                                    'placeholder': 'e.g., Product Management',
+                                    'required': True
+                                },
+                                {
+                                    'type': 'textarea',
+                                    'name': 'description',
+                                    'label': 'Description',
+                                    'placeholder': 'Brief description of what this model does',
+                                    'rows': 3
+                                },
+                                {
+                                    'type': 'textarea',
+                                    'name': 'yaml_config',
+                                    'label': 'YAML Configuration',
+                                    'placeholder': '''fields:
+  id:
+    type: integer
+    primary: true
+  name:
+    type: string
+    required: true
+  created_at:
+    type: timestamp
+    default: now''',
+                                    'rows': 15,
+                                    'help': 'Define your fields and configuration in YAML format'
+                                }
+                            ],
+                            'buttons': [
+                                {
+                                    'type': 'submit',
+                                    'text': 'Create Model',
+                                    'variant': 'primary'
+                                },
+                                {
+                                    'type': 'button',
+                                    'text': 'Cancel',
+                                    'variant': 'secondary',
+                                    'onclick': 'history.back()'
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        'type': 'card',
+                        'title': '💡 Quick Tips',
+                        'body': {
+                            'type': 'list',
+                            'items': [
+                                'Resource names should be lowercase and plural',
+                                'Each field needs a type (string, integer, boolean, etc.)',
+                                'Use "required: true" for mandatory fields',
+                                'Add "hooks" section for business logic',
+                                'Check templates for examples'
+                            ]
+                        }
+                    }
+                ]
+            )
+
+            html_content = PresentationLayer.render(ui_data, 'bootstrap')
+            return HTMLResponse(content=html_content)
+
         @self.app.get("/templates")
         async def templates_marketplace():
             """Show template marketplace with deployment functionality"""
@@ -510,12 +610,136 @@ class CRUDEngine:
                             'items': [
                                 {
                                     'type': 'card',
+                                    'id': f"template-{t['id'].replace('/', '-')}",
                                     'title': t['name'],
                                     'category': t['category'],
                                     'description': f"{t['description']} • {t['fields_count']} fields",
-                                    'actions': ['deploy', 'preview']
+                                    'body': f'''
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-primary" onclick="previewTemplate('{t['id']}')">
+                                                <i class="bi bi-eye me-2"></i>Preview Config
+                                            </button>
+                                            <button class="btn btn-success" onclick="deployTemplate('{t['id']}')">
+                                                <i class="bi bi-rocket-takeoff me-2"></i>Deploy
+                                            </button>
+                                        </div>
+                                    '''
                                 } for t in templates
                             ]
+                        },
+                        # Modal for preview
+                        {
+                            'type': 'raw',
+                            'content': '''
+                            <div class="modal fade" id="previewModal" tabindex="-1">
+                                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">
+                                                <i class="bi bi-file-code me-2"></i>
+                                                <span id="previewTitle">Template Preview</span>
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div id="previewContent">
+                                                <div class="text-center py-4">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            <button type="button" class="btn btn-success" id="deployFromPreview">
+                                                <i class="bi bi-rocket-takeoff me-2"></i>Deploy This Template
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            '''
+                        },
+                        # JavaScript for preview functionality
+                        {
+                            'type': 'script',
+                            'content': '''
+                            let currentTemplateId = null;
+
+                            async function previewTemplate(templateId) {
+                                currentTemplateId = templateId;
+                                const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+                                modal.show();
+
+                                // Update title
+                                document.getElementById('previewTitle').textContent = `Template: ${templateId}`;
+
+                                // Show loading
+                                document.getElementById('previewContent').innerHTML = `
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                `;
+
+                                try {
+                                    const response = await fetch(`/api/templates/${templateId}/preview`);
+                                    const data = await response.json();
+
+                                    // Display YAML with basic syntax highlighting
+                                    const highlightedYaml = data.content
+                                        .replace(/^(\w+):/gm, '<span class="text-primary fw-bold">$1</span>:')
+                                        .replace(/: (.*)/g, ': <span class="text-success">$1</span>')
+                                        .replace(/(#.*$)/gm, '<span class="text-muted fst-italic">$1</span>')
+                                        .replace(/(\n  - )/g, '\n  <span class="text-warning">-</span> ');
+
+                                    document.getElementById('previewContent').innerHTML = `
+                                        <div class="mb-3">
+                                            <div class="alert alert-info">
+                                                <strong>Resource:</strong> ${data.metadata.resource}<br>
+                                                <strong>Fields:</strong> ${data.metadata.fields_count}<br>
+                                                <strong>Hooks:</strong> ${data.metadata.hooks_count || 0}
+                                            </div>
+                                        </div>
+                                        <pre class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;">
+                                            <code>${highlightedYaml}</code>
+                                        </pre>
+                                    `;
+
+                                    // Set up deploy button
+                                    document.getElementById('deployFromPreview').onclick = () => {
+                                        modal.hide();
+                                        deployTemplate(templateId);
+                                    };
+
+                                } catch (error) {
+                                    document.getElementById('previewContent').innerHTML = `
+                                        <div class="alert alert-danger">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>
+                                            Error loading template: ${error.message}
+                                        </div>
+                                    `;
+                                }
+                            }
+
+                            function deployTemplate(templateId) {
+                                if (confirm(`Deploy template: ${templateId}?`)) {
+                                    // Implementation for deployment
+                                    fetch('/api/templates/deploy?template_id=' + encodeURIComponent(templateId), {
+                                        method: 'POST'
+                                    }).then(response => {
+                                        if (response.ok) {
+                                            alert('Template deployed successfully!');
+                                            window.location.reload();
+                                        } else {
+                                            alert('Deployment failed. Check console for details.');
+                                        }
+                                    });
+                                }
+                            }
+                            '''
                         }
                     ]
                 }
@@ -531,7 +755,125 @@ class CRUDEngine:
             """Show list view for a resource"""
             if resource_name not in self.resources:
                 raise HTTPException(404, f"Resource '{resource_name}' not found")
-            return HTMLResponse(self.resources[resource_name].generate_list_html())
+
+            # Use presentation layer with unified UI
+            from dbbasic_unified_ui import get_master_layout
+            resource = self.resources[resource_name]
+
+            # Get resource fields for table headers
+            list_display = resource.interface.get('list_display', list(resource.fields.keys())[:5])
+
+            ui_data = get_master_layout(
+                title=f'{resource_name.title()} - Data Service',
+                service_name='data',
+                content=[
+                    {
+                        'type': 'breadcrumb',
+                        'items': [
+                            {'text': 'Data Service', 'url': '/'},
+                            {'text': resource_name.title(), 'active': True}
+                        ]
+                    },
+                    {
+                        'type': 'card',
+                        'title': f'📋 {resource_name.title()} Records',
+                        'body': {
+                            'type': 'raw',
+                            'content': f'''
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <input type="text" class="form-control" placeholder="Search..." id="searchInput" style="width: 300px;">
+                                    </div>
+                                    <a href="/{resource_name}/create" class="btn btn-success">
+                                        <i class="bi bi-plus-circle me-2"></i>Add New
+                                    </a>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="dataTable">
+                                        <thead>
+                                            <tr>
+                                                {' '.join([f'<th>{field.replace("_", " ").title()}</th>' for field in list_display])}
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tableBody">
+                                            <!-- Data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            '''
+                        }
+                    }
+                ],
+                scripts=[
+                    {
+                        'type': 'script',
+                        'content': f'''
+                            // Load data for {resource_name}
+                            async function loadData() {{
+                                try {{
+                                    const response = await fetch('/api/{resource_name}');
+                                    const data = await response.json();
+                                    const tbody = document.getElementById('tableBody');
+
+                                    if (data.records && data.records.length > 0) {{
+                                        tbody.innerHTML = data.records.map(record => {{
+                                            const fields = {list_display};
+                                            const values = fields.map(field => `<td>${{record[field] || ''}}</td>`).join('');
+                                            return `
+                                                <tr>
+                                                    ${{values}}
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="/{resource_name}/${{record.id}}/edit" class="btn btn-warning">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </a>
+                                                            <button class="btn btn-danger" onclick="deleteRecord(${{record.id}})">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }}).join('');
+                                    }} else {{
+                                        tbody.innerHTML = '<tr><td colspan="{len(list_display) + 1}" class="text-center">No records found</td></tr>';
+                                    }}
+                                }} catch (error) {{
+                                    console.error('Error loading data:', error);
+                                }}
+                            }}
+
+                            async function deleteRecord(id) {{
+                                if (confirm('Are you sure you want to delete this record?')) {{
+                                    try {{
+                                        await fetch(`/api/{resource_name}/${{id}}`, {{ method: 'DELETE' }});
+                                        loadData();
+                                    }} catch (error) {{
+                                        console.error('Error deleting record:', error);
+                                    }}
+                                }}
+                            }}
+
+                            // Search functionality
+                            document.getElementById('searchInput').addEventListener('input', function(e) {{
+                                const filter = e.target.value.toLowerCase();
+                                const rows = document.querySelectorAll('#tableBody tr');
+                                rows.forEach(row => {{
+                                    const text = row.textContent.toLowerCase();
+                                    row.style.display = text.includes(filter) ? '' : 'none';
+                                }});
+                            }});
+
+                            // Load data on page load
+                            document.addEventListener('DOMContentLoaded', loadData);
+                        '''
+                    }
+                ]
+            )
+
+            html_content = PresentationLayer.render(ui_data, 'bootstrap')
+            return HTMLResponse(content=html_content)
 
         @self.app.get("/{resource_name}/create")
         async def resource_create_form(resource_name: str):
@@ -580,7 +922,57 @@ class CRUDEngine:
 
             return models
 
-        # Template Marketplace Deployment API - must come before generic routes
+        # Template Marketplace APIs - must come before generic routes
+        @self.app.get("/api/templates/{template_id:path}/preview")
+        async def api_preview_template(template_id: str):
+            """Get the YAML content of a template for preview"""
+            try:
+                from pathlib import Path
+
+                # Validate and sanitize template_id
+                if '..' in template_id or template_id.startswith('/'):
+                    raise HTTPException(400, "Invalid template ID")
+
+                # Parse template_id (e.g., "blog/posts_crud")
+                if '/' not in template_id:
+                    raise HTTPException(400, "Invalid template ID format. Expected: category/template")
+
+                # Ensure template_id ends with _crud if not already
+                if not template_id.endswith('_crud'):
+                    parts = template_id.rsplit('/', 1)
+                    if len(parts) == 2:
+                        template_id = f"{parts[0]}/{parts[1]}_crud"
+
+                template_path = Path(f"templates/{template_id}.yaml")
+
+                if not template_path.exists():
+                    raise HTTPException(404, f"Template not found: {template_id}")
+
+                # Read the YAML content
+                with open(template_path, 'r') as f:
+                    yaml_content = f.read()
+
+                # Parse to get metadata
+                config = yaml.safe_load(yaml_content)
+
+                return {
+                    'id': template_id,
+                    'content': yaml_content,
+                    'metadata': {
+                        'resource': config.get('resource', ''),
+                        'title': config.get('title', ''),
+                        'description': config.get('description', ''),
+                        'fields_count': len(config.get('fields', {})),
+                        'hooks_count': len(config.get('hooks', {}))
+                    }
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error previewing template {template_id}: {e}")
+                raise HTTPException(500, f"Error loading template: {e}")
+
         @self.app.get("/api/templates")
         async def api_get_templates():
             """Get list of available templates from the templates directory"""
@@ -632,6 +1024,50 @@ class CRUDEngine:
             except Exception as e:
                 logger.error(f"Error getting templates: {e}")
                 raise HTTPException(500, f"Error getting templates: {e}")
+
+        @self.app.post("/api/models/create")
+        async def api_create_model(request: Request):
+            """Create a new CRUD model from form data"""
+            try:
+                from pathlib import Path
+
+                # Parse form data
+                form_data = await request.form()
+                resource = form_data.get('resource', '').strip()
+                title = form_data.get('title', '')
+                description = form_data.get('description', '')
+                yaml_config = form_data.get('yaml_config', '')
+
+                if not resource:
+                    raise HTTPException(400, "Resource name is required")
+
+                # Create the YAML configuration
+                config_content = f"""# {title}
+# {description}
+
+resource: {resource}
+title: {title}
+description: {description}
+
+{yaml_config}
+"""
+
+                # Save to a file
+                filename = f"{resource}_crud.yaml"
+                file_path = Path(filename)
+
+                with open(file_path, 'w') as f:
+                    f.write(config_content)
+
+                # Load the new resource
+                self.load_resource(filename)
+
+                # Redirect to the new resource
+                return RedirectResponse(url=f"/{resource}", status_code=303)
+
+            except Exception as e:
+                logger.error(f"Error creating model: {e}")
+                raise HTTPException(500, f"Error creating model: {e}")
 
         @self.app.post("/api/templates/deploy")
         async def api_deploy_template(
