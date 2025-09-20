@@ -134,12 +134,16 @@ class BootstrapRenderer(UIRenderer):
         title = data.get('title', '')
         category = data.get('category', '')
         description = data.get('description', '')
+        body = data.get('body', '')
         actions = []
 
         for action in data.get('actions', []):
             if isinstance(action, str):
                 variant = 'success' if action == 'deploy' else 'secondary'
                 actions.append(f'<button class="btn btn-{variant} btn-sm" onclick="{action}Template(\'{title}\')">{action.title()}</button>')
+
+        # If body is provided, use it; otherwise use description
+        content = body if body else description
 
         return f"""
         <div class="card h-100">
@@ -148,7 +152,7 @@ class BootstrapRenderer(UIRenderer):
                     <h5 class="card-title">{title}</h5>
                     {f'<span class="badge bg-primary">{category}</span>' if category else ''}
                 </div>
-                <p class="card-text">{description}</p>
+                <p class="card-text">{content}</p>
             </div>
             {f'<div class="card-footer bg-transparent"><div class="d-grid gap-2 d-flex justify-content-end">{" ".join(actions)}</div></div>' if actions else ''}
         </div>"""

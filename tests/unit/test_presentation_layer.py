@@ -48,7 +48,8 @@ class TestPresentationLayer:
         assert html is not None
         assert 'card' in html
         assert 'Test Card' in html
-        assert 'Test Description' in html
+        # When both body and description are provided, body takes precedence
+        assert 'Test Body Content' in html
 
     def test_render_with_tailwind(self):
         """Test rendering with Tailwind"""

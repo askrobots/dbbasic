@@ -453,13 +453,33 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
 
         return f'<div class="{fluid}">{"".join(children_html)}</div>'
 
+    def render_div(self, data: Dict) -> str:
+        """Render a div element with ID and class support"""
+        div_id = data.get('id', '')
+        div_class = data.get('class', '')
+        content = data.get('content', '')
+        children = data.get('children', [])
+
+        # Process content or children
+        if children:
+            inner_html = ''.join([self.render(child) for child in children])
+        else:
+            inner_html = content
+
+        id_attr = f'id="{div_id}"' if div_id else ''
+        class_attr = f'class="{div_class}"' if div_class else ''
+
+        return f'<div {id_attr} {class_attr}>{inner_html}</div>'
+
     def render(self, data: Any) -> str:
         """Extended render method with new component types"""
         if isinstance(data, dict):
             component_type = data.get('type', '')
 
             # Handle new component types
-            if component_type == 'container':
+            if component_type == 'div':
+                return self.render_div(data)
+            elif component_type == 'container':
                 return self.render_container(data)
             elif component_type == 'form':
                 return self.render_form(data)
