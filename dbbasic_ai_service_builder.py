@@ -16,6 +16,14 @@ import textwrap
 import subprocess
 import sys
 
+from presentation_layer import PresentationLayer
+from bootstrap_components import ExtendedBootstrapRenderer
+from dbbasic_unified_ui import get_master_layout, SERVICES
+
+# Initialize presentation layer
+PresentationLayer.add_renderer('bootstrap', ExtendedBootstrapRenderer())
+
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles

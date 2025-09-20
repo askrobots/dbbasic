@@ -18,6 +18,14 @@ from collections import deque
 import os
 import sys
 
+from presentation_layer import PresentationLayer
+from bootstrap_components import ExtendedBootstrapRenderer
+from dbbasic_unified_ui import get_master_layout, SERVICES
+
+# Initialize presentation layer
+PresentationLayer.add_renderer('bootstrap', ExtendedBootstrapRenderer())
+
+
 # Import our services
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from services.calculate_shipping import calculate_shipping

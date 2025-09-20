@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic Demo - Same Data, Different Frameworks</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    
+        <nav class="bg-white shadow-lg">
+            <div class="container mx-auto px-4">
+                <div class="flex justify-between items-center py-4">
+                    <span class="text-xl font-bold">DBBasic Demo</span>
+                    <div class="flex space-x-4">
+                        <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/dashboard">Dashboard</a> <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/data">Data</a> <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/settings">Settings</a>
+                    </div>
+                </div>
+            </div>
+        </nav><div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded">This page demonstrates how the same data structure renders in different UI frameworks</div>
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-center py-16">
+            <div class="container mx-auto px-4">
+                <h1 class="text-5xl font-bold mb-4">🎨 Framework Flexibility</h1>
+                <p class="text-xl">One data structure, infinite possibilities</p>
+            </div>
+        </div>
+        <div class="container mx-auto px-4 my-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">Bootstrap Version</h3>
+                <span class="bg-blue-500 text-white px-2 py-1 rounded text-sm">Framework</span>
+            </div>
+            <p class="text-gray-600 mb-4">Uses Bootstrap 5.3 classes and components</p>
+            <div class="flex justify-end space-x-2"><button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded" onclick="deployTemplate('Bootstrap Version')">Deploy</button> <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded" onclick="previewTemplate('Bootstrap Version')">Preview</button></div>
+        </div> 
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">Tailwind Version</h3>
+                <span class="bg-blue-500 text-white px-2 py-1 rounded text-sm">Framework</span>
+            </div>
+            <p class="text-gray-600 mb-4">Uses Tailwind utility classes</p>
+            <div class="flex justify-end space-x-2"><button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded" onclick="deployTemplate('Tailwind Version')">Deploy</button> <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded" onclick="previewTemplate('Tailwind Version')">Preview</button></div>
+        </div>
+            </div>
+        </div>{'type': 'container', 'children': ['<hr class="my-5">', '<h2 class="text-center">Benefits of This Approach</h2>', {'type': 'grid', 'columns': 3, 'items': [{'type': 'card', 'title': '🤖 AI-Friendly', 'description': 'AI can generate UI by creating data structures'}, {'type': 'card', 'title': '🎨 Customizable', 'description': 'Users can add their own UI framework renderers'}, {'type': 'card', 'title': '🧹 Clean Code', 'description': 'No HTML mixed with Python business logic'}]}]}
+    <script>
+        function deployTemplate(id) { alert('Deploying: ' + id); }
+        function previewTemplate(id) { alert('Preview: ' + id); }
+    </script>
+</body>
+</html>

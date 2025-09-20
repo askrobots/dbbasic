@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic Template Marketplace</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    
+        <nav class="bg-white shadow-lg">
+            <div class="container mx-auto px-4">
+                <div class="flex justify-between items-center py-4">
+                    <span class="text-xl font-bold">DBBasic</span>
+                    <div class="flex space-x-4">
+                        <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/monitor">Monitor</a> <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/data">Data</a> <a class="px-3 py-2 text-gray-700 hover:text-gray-900" href="/templates">Templates</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-center py-16">
+            <div class="container mx-auto px-4">
+                <h1 class="text-5xl font-bold mb-4">Template Marketplace</h1>
+                <p class="text-xl">Deploy apps instantly</p>
+            </div>
+        </div>
+        <div class="container mx-auto px-4 my-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">Blog</h3>
+                <span class="bg-blue-500 text-white px-2 py-1 rounded text-sm">CMS</span>
+            </div>
+            <p class="text-gray-600 mb-4">Full-featured blog platform</p>
+            <div class="flex justify-end space-x-2"><button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded" onclick="deployTemplate('Blog')">Deploy</button> <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded" onclick="previewTemplate('Blog')">Preview</button></div>
+        </div> 
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">Shop</h3>
+                <span class="bg-blue-500 text-white px-2 py-1 rounded text-sm">E-Commerce</span>
+            </div>
+            <p class="text-gray-600 mb-4">Online store with payments</p>
+            <div class="flex justify-end space-x-2"><button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded" onclick="deployTemplate('Shop')">Deploy</button> <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded" onclick="previewTemplate('Shop')">Preview</button></div>
+        </div> 
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">CRM</h3>
+                <span class="bg-blue-500 text-white px-2 py-1 rounded text-sm">Business</span>
+            </div>
+            <p class="text-gray-600 mb-4">Customer relationship manager</p>
+            <div class="flex justify-end space-x-2"><button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded" onclick="deployTemplate('CRM')">Deploy</button> <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded" onclick="previewTemplate('CRM')">Preview</button></div>
+        </div>
+            </div>
+        </div>
+    <script>
+        function deployTemplate(id) { alert('Deploying: ' + id); }
+        function previewTemplate(id) { alert('Preview: ' + id); }
+    </script>
+</body>
+</html>

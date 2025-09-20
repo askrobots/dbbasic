@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBBasic Framework Comparison</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    
+        <style>
+            .card { transition: transform 0.3s; }
+            .card:hover { transform: translateY(-5px); }
+        </style>
+</head>
+<body>
+    
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">DBBasic</a>
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="#">Dashboard</a> <a class="nav-link" href="#">Services</a> <a class="nav-link" href="#">Templates</a>
+                </div>
+            </div>
+        </nav>
+        <div class="bg-primary text-white text-center py-5">
+            <div class="container">
+                <h1 class="display-4">One Data Structure, Multiple Frameworks</h1>
+                <p class="lead">Write once, render anywhere</p>
+            </div>
+        </div><div class="container">
+        <div class="container my-5">
+            <div class="row row-cols-1 row-cols-md-4 g-4">
+                <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title"></h5>
+                    
+                </div>
+                <p class="card-text"></p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title"></h5>
+                    
+                </div>
+                <p class="card-text"></p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title"></h5>
+                    
+                </div>
+                <p class="card-text"></p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title"></h5>
+                    
+                </div>
+                <p class="card-text"></p>
+            </div>
+            
+        </div></div>
+            </div>
+        </div>{'type': 'div', 'class': 'mt-5', 'children': [{'type': 'h2', 'text': 'Features', 'class': 'mb-4'}, {'type': 'grid', 'columns': 3, 'items': [{'type': 'card', 'title': 'Config-Driven', 'description': 'Define entire applications with YAML configuration', 'footer': {'type': 'button', 'text': 'Learn More', 'variant': 'primary'}}, {'type': 'card', 'title': 'AI-Powered', 'description': 'Generate business logic from natural language', 'footer': {'type': 'button', 'text': 'Try It', 'variant': 'success'}}, {'type': 'card', 'title': 'Lightning Fast', 'description': '402M rows/sec with DuckDB backend', 'footer': {'type': 'button', 'text': 'Benchmark', 'variant': 'info'}}]}]}{'type': 'div', 'class': 'mt-5', 'children': [{'type': 'h2', 'text': 'Contact Form', 'class': 'mb-4'}, {'type': 'card', 'body': {'type': 'form', 'fields': [{'type': 'input', 'name': 'name', 'label': 'Your Name', 'placeholder': 'John Doe', 'required': True}, {'type': 'input', 'input_type': 'email', 'name': 'email', 'label': 'Email', 'placeholder': 'john@example.com', 'required': True}, {'type': 'textarea', 'name': 'message', 'label': 'Message', 'rows': 4, 'placeholder': 'Your message here...'}], 'submit': {'text': 'Send Message', 'variant': 'primary'}}}]}{'type': 'div', 'class': 'mt-5 mb-5', 'children': [{'type': 'h2', 'text': 'Service Status', 'class': 'mb-4'}, {'type': 'table', 'headers': ['Service', 'Status', 'Port', 'Uptime'], 'rows': [['Real-time Monitor', {'type': 'badge', 'text': 'Running', 'variant': 'success'}, '8004', '12h 34m'], ['Data Service', {'type': 'badge', 'text': 'Running', 'variant': 'success'}, '8005', '12h 34m'], ['AI Services', {'type': 'badge', 'text': 'Running', 'variant': 'success'}, '8003', '12h 34m'], ['Event Store', {'type': 'badge', 'text': 'Stopped', 'variant': 'danger'}, '8006', '-']]}]}</div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+        <script>
+            function deployTemplate(id) { alert('Deploying: ' + id); }
+            function previewTemplate(id) { alert('Preview: ' + id); }
+        </script>
+</body>
+</html>

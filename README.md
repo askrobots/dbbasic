@@ -332,7 +332,7 @@ See [PRIOR_ART.md](PRIOR_ART.md) for full attribution.
 
 ## 🛍️ Template Marketplace
 
-**Live at:** http://localhost:8005/templates (DBBasic Admin - Template Marketplace)
+**Live at:** http://localhost:8005/templates (DBBasic Data - Template Marketplace)
 
 The template marketplace makes DBBasic instantly productive with one-click deployment:
 

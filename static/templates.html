@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Marketplace - DBBasic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    
+        <style>
+            .card { transition: transform 0.3s; }
+            .card:hover { transform: translateY(-5px); }
+        </style>
+</head>
+<body>
+    
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">DBBasic</a>
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="http://localhost:8004">Monitor</a> <a class="nav-link" href="http://localhost:8005">Data</a> <a class="nav-link" href="http://localhost:8003">AI Services</a> <a class="nav-link" href="http://localhost:8006">Event Store</a> <a class="nav-link" href="http://localhost:8005/templates">Templates</a>
+                </div>
+            </div>
+        </nav><div class="container-fluid"><div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">DBBasic</a></li><li class="breadcrumb-item active">Data</li>
+            </ol>
+        </nav>
+        </div></div><div class="container-fluid">
+        <div class="bg-primary text-white text-center py-5">
+            <div class="container">
+                <h1 class="display-4">🛍️ Template Marketplace</h1>
+                <p class="lead">Deploy production-ready applications in minutes</p>
+            </div>
+        </div>
+        <ul class="nav nav-tabs" role="tablist">
+            
+        </ul>
+        <div class="tab-content mt-3">
+            
+        </div>
+        
+        <div class="container my-5">
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title">Professional Blog</h5>
+                    
+                </div>
+                <p class="card-text">Full-featured blog with SEO, categories, tags, and social sharing</p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title">Complete E-Commerce Platform</h5>
+                    
+                </div>
+                <p class="card-text">Production-ready online store with inventory, orders, and payments</p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title">Customer Relationship Management</h5>
+                    
+                </div>
+                <p class="card-text">Complete CRM with leads, contacts, and sales pipeline</p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title">Agile Project Management</h5>
+                    
+                </div>
+                <p class="card-text">Kanban boards, sprints, and team collaboration</p>
+            </div>
+            
+        </div></div> <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title">Social Media Platform</h5>
+                    
+                </div>
+                <p class="card-text">User profiles, posts, and social interactions</p>
+            </div>
+            
+        </div></div>
+            </div>
+        </div></div><div class="container-fluid"><div class="container">{'type': 'row', 'children': [{'type': 'col', 'size': 4, 'children': ['<h5>DBBasic</h5>', '<p class="text-muted">Config-driven application platform</p>']}, {'type': 'col', 'size': 4, 'children': ['<h6>Services</h6>', {'type': 'list', 'class': 'list-unstyled', 'items': ['<a href="http://localhost:8004" class="text-muted">Monitor</a>', '<a href="http://localhost:8005" class="text-muted">Data</a>', '<a href="http://localhost:8003" class="text-muted">AI Services</a>', '<a href="http://localhost:8006" class="text-muted">Event Store</a>', '<a href="http://localhost:8005" class="text-muted">Templates</a>']}]}, {'type': 'col', 'size': 4, 'children': ['<h6>Performance</h6>', '<p class="text-muted">🚀 402M rows/sec with DuckDB</p>', '<p class="text-muted">⚡ Post-Code Era</p>', '<p class="text-muted">🤖 AI-Enhanced</p>']}]}<hr class="border-secondary"><p class="text-center text-muted mb-0">© 2024 DBBasic - Everything is Data</p></div></div>{'type': 'script', 'content': '\n                    function previewTemplate(templateName) {\n                        window.open(`/templates/${templateName}/preview`, \'_blank\');\n                    }\n\n                    async function deployTemplate(templateName) {\n                        if (!confirm(`Deploy ${templateName} template?`)) return;\n\n                        const response = await fetch(\'/api/templates/deploy\', {\n                            method: \'POST\',\n                            headers: {\'Content-Type\': \'application/json\'},\n                            body: JSON.stringify({template: templateName})\n                        });\n\n                        if (response.ok) {\n                            const result = await response.json();\n                            alert(`Template deployed successfully! Access at: ${result.url}`);\n                            location.href = result.url;\n                        } else {\n                            alert(\'Deployment failed. Please try again.\');\n                        }\n                    }\n\n                    // Tab filtering\n                    document.addEventListener(\'DOMContentLoaded\', () => {\n                        const tabs = document.querySelectorAll(\'[data-bs-toggle="tab"]\');\n                        tabs.forEach(tab => {\n                            tab.addEventListener(\'click\', (e) => {\n                                const category = e.target.getAttribute(\'aria-controls\');\n                                filterTemplates(category);\n                            });\n                        });\n                    });\n\n                    function filterTemplates(category) {\n                        const cards = document.querySelectorAll(\'.template-card\');\n                        cards.forEach(card => {\n                            if (category === \'all\' || card.dataset.category === category) {\n                                card.style.display = \'block\';\n                            } else {\n                                card.style.display = \'none\';\n                            }\n                        });\n                    }\n                '}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+        <script>
+            function deployTemplate(id) { alert('Deploying: ' + id); }
+            function previewTemplate(id) { alert('Preview: ' + id); }
+        </script>
+</body>
+</html>

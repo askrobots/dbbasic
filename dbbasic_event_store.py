@@ -22,6 +22,14 @@ from pydantic import BaseModel
 import uvicorn
 import logging
 
+from presentation_layer import PresentationLayer
+from bootstrap_components import ExtendedBootstrapRenderer
+from dbbasic_unified_ui import get_master_layout, SERVICES
+
+# Initialize presentation layer
+PresentationLayer.add_renderer('bootstrap', ExtendedBootstrapRenderer())
+
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

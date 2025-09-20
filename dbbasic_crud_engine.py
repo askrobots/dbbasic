@@ -27,6 +27,9 @@ import uvicorn
 import requests
 import aiofiles
 
+# Import presentation layer for clean UI generation
+from presentation_layer import PresentationLayer
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -481,7 +484,7 @@ class CRUDEngine:
                     <div class="logo">DBBasic</div>
                     <nav class="nav">
                         <a href="http://localhost:8004">Monitor</a>
-                        <a href="http://localhost:8005" class="active">CRUD Engine</a>
+                        <a href="http://localhost:8005" class="active">Data</a>
                         <a href="http://localhost:8003">AI Services</a>
                         <a href="http://localhost:8006">Event Store</a>
                         <a href="http://localhost:8000/static/mockups.html">Templates</a>
@@ -531,158 +534,44 @@ class CRUDEngine:
                                 except Exception as e:
                                     logger.warning(f"Error reading template {template_file}: {e}")
 
-                # Generate template cards HTML
-                template_cards = []
-                for template in templates:
-                    template_cards.append(f'''
-                    <div class="template-card">
-                        <div class="template-header">
-                            <h3>{template['name']}</h3>
-                            <span class="category-badge">{template['category']}</span>
-                        </div>
-                        <p class="template-description">{template['description']}</p>
-                        <div class="template-stats">
-                            <span>📊 {template['fields_count']} fields</span>
-                            <span>🚀 Ready to deploy</span>
-                        </div>
-                        <div class="template-actions">
-                            <button class="deploy-btn" onclick="deployTemplate('{template['id']}')">
-                                Deploy Template
-                            </button>
-                            <button class="preview-btn" onclick="previewTemplate('{template['id']}')">
-                                Preview
-                            </button>
-                        </div>
-                    </div>
-                    ''')
+                # Build UI structure as data
+                ui_structure = {
+                    'type': 'page',
+                    'title': 'DBBasic - Template Marketplace',
+                    'components': [
+                        {
+                            'type': 'navbar',
+                            'brand': 'DBBasic',
+                            'links': [
+                                {'text': 'Monitor', 'url': 'http://localhost:8004'},
+                                {'text': 'Data', 'url': 'http://localhost:8005'},
+                                {'text': 'AI Services', 'url': 'http://localhost:8003'},
+                                {'text': 'Templates', 'url': '/templates'}
+                            ]
+                        },
+                        {
+                            'type': 'hero',
+                            'title': '🛍️ Template Marketplace',
+                            'subtitle': 'Deploy production-ready applications instantly'
+                        },
+                        {
+                            'type': 'grid',
+                            'columns': 3,
+                            'items': [
+                                {
+                                    'type': 'card',
+                                    'title': t['name'],
+                                    'category': t['category'],
+                                    'description': f"{t['description']} • {t['fields_count']} fields",
+                                    'actions': ['deploy', 'preview']
+                                } for t in templates
+                            ]
+                        }
+                    ]
+                }
 
-                return HTMLResponse(f'''
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>DBBasic Admin - Template Marketplace</title>
-                    <style>
-                        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }}
-                        .header {{ background: white; border-bottom: 1px solid #e0e0e0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }}
-                        .logo {{ font-size: 24px; font-weight: bold; color: #333; }}
-                        .nav {{ display: flex; gap: 2rem; align-items: center; }}
-                        .nav a {{ color: #666; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; transition: all 0.3s; font-size: 14px; border: 1px solid transparent; }}
-                        .nav a:hover {{ background: #f0f0f0; border-color: #ddd; }}
-                        .nav a.active {{ background: #007bff; color: white; }}
-                        .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
-                        .title {{ font-size: 32px; font-weight: bold; color: #333; margin-bottom: 10px; text-align: center; }}
-                        .subtitle {{ color: #666; text-align: center; margin-bottom: 40px; font-size: 18px; }}
-                        .templates-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 25px; }}
-                        .template-card {{ background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); transition: transform 0.3s; }}
-                        .template-card:hover {{ transform: translateY(-5px); }}
-                        .template-header {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }}
-                        .template-header h3 {{ margin: 0; color: #333; font-size: 20px; }}
-                        .category-badge {{ background: #007bff; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }}
-                        .template-description {{ color: #666; margin-bottom: 20px; line-height: 1.5; }}
-                        .template-stats {{ display: flex; gap: 15px; margin-bottom: 20px; }}
-                        .template-stats span {{ background: #f8f9fa; padding: 6px 12px; border-radius: 20px; font-size: 14px; color: #495057; }}
-                        .template-actions {{ display: flex; gap: 10px; }}
-                        .deploy-btn, .preview-btn {{ padding: 12px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }}
-                        .deploy-btn {{ background: #28a745; color: white; flex: 1; }}
-                        .deploy-btn:hover {{ background: #218838; }}
-                        .deploy-btn:disabled {{ background: #6c757d; cursor: not-allowed; }}
-                        .preview-btn {{ background: #6c757d; color: white; }}
-                        .preview-btn:hover {{ background: #5a6268; }}
-                        .alert {{ padding: 15px; margin-bottom: 20px; border-radius: 8px; }}
-                        .alert.success {{ background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }}
-                        .alert.error {{ background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div class="logo">DBBasic</div>
-                        <nav class="nav">
-                            <a href="http://localhost:8004">Monitor</a>
-                            <a href="http://localhost:8005">Admin</a>
-                            <a href="http://localhost:8003">AI Services</a>
-                            <a href="http://localhost:8006">Event Store</a>
-                            <a href="http://localhost:8005/templates" class="active">Templates</a>
-                        </nav>
-                        <div style="color: #666; font-size: 14px;">402M rows/sec</div>
-                    </div>
-                    <div class="container">
-                        <h1 class="title">🛍️ Template Marketplace</h1>
-                        <p class="subtitle">Deploy production-ready applications instantly with one-click templates</p>
-
-                        <div id="alerts"></div>
-
-                        <div class="templates-grid">
-                            {''.join(template_cards)}
-                        </div>
-                    </div>
-
-                    <script>
-                    async function deployTemplate(templateId) {{
-                        const button = event.target;
-                        const originalText = button.textContent;
-
-                        try {{
-                            button.textContent = 'Deploying...';
-                            button.disabled = true;
-
-                            const response = await fetch(`/api/templates/deploy?template_id=${{encodeURIComponent(templateId)}}`, {{
-                                method: 'POST',
-                                headers: {{ 'Content-Type': 'application/json' }},
-                                body: JSON.stringify({{}})
-                            }});
-
-                            const result = await response.json();
-
-                            if (response.ok) {{
-                                button.textContent = '✅ Deployed!';
-                                showAlert(`Template deployed successfully! <a href="${{result.url}}" target="_blank">Open Application →</a>`, 'success');
-                                setTimeout(() => {{
-                                    window.open(result.url, '_blank');
-                                }}, 1000);
-                            }} else {{
-                                throw new Error(result.detail || 'Deployment failed');
-                            }}
-                        }} catch (error) {{
-                            button.textContent = '❌ Failed';
-                            showAlert(`Deployment failed: ${{error.message}}`, 'error');
-                        }} finally {{
-                            setTimeout(() => {{
-                                button.textContent = originalText;
-                                button.disabled = false;
-                            }}, 3000);
-                        }}
-                    }}
-
-                    async function previewTemplate(templateId) {{
-                        try {{
-                            const response = await fetch(`/api/templates/preview?template_id=${{encodeURIComponent(templateId)}}`);
-                            const result = await response.json();
-
-                            if (response.ok) {{
-                                showAlert(`Preview: ${{result.fields_count}} fields, ${{result.hooks_count}} hooks configured`, 'success');
-                            }} else {{
-                                throw new Error(result.detail || 'Preview failed');
-                            }}
-                        }} catch (error) {{
-                            showAlert(`Preview failed: ${{error.message}}`, 'error');
-                        }}
-                    }}
-
-                    function showAlert(message, type) {{
-                        const alertsContainer = document.getElementById('alerts');
-                        const alert = document.createElement('div');
-                        alert.className = `alert ${{type}}`;
-                        alert.innerHTML = message;
-                        alertsContainer.appendChild(alert);
-
-                        setTimeout(() => {{
-                            alert.remove();
-                        }}, 5000);
-                    }}
-                    </script>
-                </body>
-                </html>
-                ''')
+                # Use presentation layer - can switch to 'tailwind' or custom later
+                return HTMLResponse(PresentationLayer.render(ui_structure, 'bootstrap'))
             except Exception as e:
                 logger.error(f"Error loading templates marketplace: {e}")
                 raise HTTPException(500, f"Error loading templates: {e}")
