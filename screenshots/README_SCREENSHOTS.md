@@ -26,21 +26,12 @@
 
 ### 🎨 Prototype Interfaces (Coming Soon)
 
-These interfaces are currently available as interactive prototypes at `http://localhost:8000/static/mockups.html`
+Interactive prototypes are available at `http://localhost:8000/static/mockups.html`
 
-#### Main Dashboard
-![Main Dashboard](screenshots/main_dashboard.png)
-*Prototype preview - implementation pending*
+- Main Dashboard
+- Config Editor
+- AI Services Manager
+- System Settings
 
-#### Dashboard
-![Dashboard](screenshots/prototype_dashboard.png)
-*Prototype preview - implementation pending*
-
-#### Config Editor
-![Config Editor](screenshots/prototype_config_editor.png)
-*Prototype preview - implementation pending*
-
-#### Ai Services
-![Ai Services](screenshots/prototype_ai_services.png)
-*Prototype preview - implementation pending*
+*Screenshots will be added once these interfaces are fully implemented*
 
