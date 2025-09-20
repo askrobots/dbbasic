@@ -306,6 +306,34 @@ async def root():
             align-items: center;
         }
 
+        .nav {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav a {
+            color: #e0e0e0;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: all 0.3s;
+            font-size: 14px;
+            border: 1px solid transparent;
+        }
+
+        .nav a:hover {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: rgba(76, 175, 80, 0.5);
+            color: #4CAF50;
+        }
+
+        .nav a.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
         .logo {
             font-size: 24px;
             font-weight: bold;
@@ -452,6 +480,13 @@ async def root():
             <div class="logo">DBBasic</div>
             <span style="color: #666; font-size: 14px;">Real-time Service Monitor</span>
         </div>
+        <nav class="nav">
+            <a href="http://localhost:8004" class="active">Monitor</a>
+            <a href="http://localhost:8005">CRUD Engine</a>
+            <a href="http://localhost:8003">AI Services</a>
+            <a href="http://localhost:8006">Event Store</a>
+            <a href="http://localhost:8000/static/mockups.html">Templates</a>
+        </nav>
         <div>
             <span id="connection-status">Connecting...</span>
             <span class="status-indicator"></span>

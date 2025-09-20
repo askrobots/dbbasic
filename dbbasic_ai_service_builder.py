@@ -785,9 +785,58 @@ async def root():
             padding: 0.5rem 1rem;
             border-radius: 20px;
         }
+        .nav-bar {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .nav-brand {
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+        }
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+        .nav-links a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: all 0.3s;
+            font-size: 14px;
+            border: 1px solid transparent;
+        }
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            color: white;
+        }
     </style>
 </head>
 <body>
+    <div class="nav-bar">
+        <div class="nav-brand">DBBasic</div>
+        <nav class="nav-links">
+            <a href="http://localhost:8004">Monitor</a>
+            <a href="http://localhost:8005">CRUD Engine</a>
+            <a href="http://localhost:8003" class="active">AI Services</a>
+            <a href="http://localhost:8006">Event Store</a>
+            <a href="http://localhost:8000/static/mockups.html">Templates</a>
+        </nav>
+        <div style="color: rgba(255, 255, 255, 0.7); font-size: 14px;">402M rows/sec</div>
+    </div>
     <div class="header">
         <div class="logo">DBBasic</div>
         <div class="tagline">AI Service Platform - Config → Code → Tests</div>
