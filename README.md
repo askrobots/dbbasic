@@ -332,7 +332,7 @@ See [PRIOR_ART.md](PRIOR_ART.md) for full attribution.
 
 ## 🛍️ Template Marketplace
 
-**Live at:** http://localhost:8000/static/mockup_marketplace.html
+**Live at:** http://localhost:8005/templates (DBBasic Admin - Template Marketplace)
 
 The template marketplace makes DBBasic instantly productive with one-click deployment:
 
@@ -346,8 +346,10 @@ The template marketplace makes DBBasic instantly productive with one-click deplo
 
 ### One-Click Deployment
 ```
-Visit marketplace → Click "Deploy Template" → Running app in 30 seconds
+Visit http://localhost:8005/templates → Click "Deploy Template" → Running app in 30 seconds
 ```
+
+**Mockup Interface:** http://localhost:8000/static/mockup_marketplace.html (demonstration UI)
 
 Each template includes:
 - Complete data models with relationships
