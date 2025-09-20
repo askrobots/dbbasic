@@ -696,7 +696,17 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    """Serve the unified DBBasic dashboard"""
+    """Serve the AI Service Builder using presentation layer"""
+    from dbbasic_ai_service_builder_presentation import get_ai_service_main_ui
+
+    ui_data = get_ai_service_main_ui()
+    html_content = PresentationLayer.render(ui_data, "bootstrap")
+
+    return HTMLResponse(content=html_content)
+
+@app.get("/old-root")
+async def old_root():
+    """Serve the old unified DBBasic dashboard"""
     return HTMLResponse(content="""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -933,39 +943,39 @@ async def root():
 
 @app.get("/fresh")
 async def fresh_interface():
-    """Serve fresh AI Service Builder interface"""
-    html_path = Path("static/ai_service_builder.html")
-    if html_path.exists():
-        content = html_path.read_text()
+    """Serve fresh AI Service Builder interface using presentation layer"""
+    from dbbasic_ai_service_builder_presentation import get_ai_service_main_ui
 
-        # Add timestamp to force cache invalidation
-        import time
-        timestamp = str(int(time.time()))
+    # Generate the UI using presentation layer
+    ui_data = get_ai_service_main_ui()
+    html_content = PresentationLayer.render(ui_data, 'bootstrap')
 
-        # Inject cache-busting script
-        cache_buster = f"""
-        <script>
-        // Force cache invalidation {timestamp}
-        console.log('Cache busted at {timestamp}');
-        </script>
-        """
+    # Add timestamp to force cache invalidation
+    import time
+    timestamp = str(int(time.time()))
 
-        # Insert before closing head tag
-        content = content.replace('</head>', cache_buster + '</head>')
+    # Inject cache-busting script
+    cache_buster = f"""
+    <script>
+    // Force cache invalidation {timestamp}
+    console.log('Presentation Layer UI loaded at {timestamp}');
+    </script>
+    """
 
-        return HTMLResponse(
-            content=content,
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate, proxy-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-                "ETag": f'"{timestamp}"',
-                "Last-Modified": "Wed, 21 Oct 2015 07:28:00 GMT",
-                "Vary": "*"
-            }
-        )
-    else:
-        return HTMLResponse(content="<h1>Interface not found</h1>")
+    # Insert before closing head tag
+    html_content = html_content.replace('</head>', cache_buster + '</head>')
+
+    return HTMLResponse(
+        content=html_content,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "ETag": f'"{timestamp}"',
+            "Last-Modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+            "Vary": "*"
+        }
+    )
 
 @app.get("/builder")
 async def builder_interface():

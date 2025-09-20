@@ -10,6 +10,9 @@ from presentation_layer import UIRenderer, BootstrapRenderer
 class ExtendedBootstrapRenderer(BootstrapRenderer):
     """Extended Bootstrap renderer with complete component library"""
 
+    def __init__(self):
+        super().__init__()  # Initialize parent class with scripts array
+
     def render_form(self, data: Dict) -> str:
         """Render a complete Bootstrap form"""
         method = data.get('method', 'POST')
@@ -154,6 +157,7 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
         """Render a Bootstrap table"""
         headers = data.get('headers', [])
         rows = data.get('rows', [])
+        table_id = data.get('id', '')
         striped = 'table-striped' if data.get('striped', True) else ''
         hover = 'table-hover' if data.get('hover', True) else ''
         bordered = 'table-bordered' if data.get('bordered', False) else ''
@@ -175,8 +179,9 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
                 cells_html.append(f'<td>{cell_content}</td>')
             rows_html.append(f'<tr>{"".join(cells_html)}</tr>')
 
+        id_attr = f'id="{table_id}"' if table_id else ''
         table_html = f"""
-        <table class="table {striped} {hover} {bordered}">
+        <table class="table {striped} {hover} {bordered}" {id_attr}>
             <thead>
                 <tr>{header_html}</tr>
             </thead>
@@ -505,9 +510,73 @@ class ExtendedBootstrapRenderer(BootstrapRenderer):
                 return self.render_toast(data)
             elif component_type == 'list_group':
                 return self.render_list_group(data)
+            elif component_type == 'metric':
+                return self.render_metric(data)
+            elif component_type == 'script':
+                return self.render_script(data)
+            elif component_type == 'row':
+                return self.render_row(data)
+            elif component_type == 'col':
+                return self.render_col(data)
+            elif component_type == 'list':
+                return self.render_list(data)
 
         # Fall back to parent implementation
         return super().render(data)
+
+    def render_metric(self, data: Dict) -> str:
+        """Render a metric card"""
+        metric_id = data.get('id', '')
+        label = data.get('label', '')
+        value = data.get('value', '0')
+        icon = data.get('icon', '')
+
+        icon_html = f'<i class="{icon} fs-3 me-2"></i>' if icon else ''
+        id_attr = f'id="{metric_id}"' if metric_id else ''
+
+        return f"""
+        <div class="text-center">
+            {icon_html}
+            <h3 class="mb-0" {id_attr}>{value}</h3>
+            <small class="text-muted">{label}</small>
+        </div>
+        """
+
+    def render_script(self, data: Dict) -> str:
+        """Render inline JavaScript"""
+        content = data.get('content', '')
+        return f"<script>{content}</script>"
+
+    def render_row(self, data: Dict) -> str:
+        """Render Bootstrap row"""
+        children = data.get('children', [])
+        children_html = ''.join(self.render(child) for child in children)
+        return f'<div class="row">{children_html}</div>'
+
+    def render_col(self, data: Dict) -> str:
+        """Render Bootstrap column"""
+        size = data.get('size', 12)
+        children = data.get('children', [])
+        children_html = ''.join(self.render(child) for child in children)
+        return f'<div class="col-md-{size}">{children_html}</div>'
+
+    def render_list(self, data: Dict) -> str:
+        """Render a list"""
+        items = data.get('items', [])
+        list_class = data.get('class', '')
+        list_id = data.get('id', '')
+
+        items_html = []
+        for item in items:
+            if isinstance(item, str):
+                items_html.append(f'<li>{item}</li>')
+            else:
+                items_html.append(f'<li>{self.render(item)}</li>')
+
+        id_attr = f'id="{list_id}"' if list_id else ''
+        class_attr = f'class="{list_class}"' if list_class else ''
+
+        return f'<ul {id_attr} {class_attr}>{"".join(items_html)}</ul>'
 
 
 # Test the extended components

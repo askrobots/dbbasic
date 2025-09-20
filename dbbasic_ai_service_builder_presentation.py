@@ -32,9 +32,10 @@ def get_ai_service_main_ui():
                 'items': [
                     {
                         'type': 'card',
-                        'id': 'services-count',
+                        'id': 'services-count-card',
                         'body': {
                             'type': 'metric',
+                            'id': 'services-count',
                             'label': 'Services Created',
                             'value': '0',
                             'icon': 'bi-robot'
@@ -196,7 +197,8 @@ def get_ai_service_main_ui():
 
                     function addServiceToTable(service) {
                         const table = document.getElementById('services-table');
-                        const row = table.insertRow();
+                        const tbody = table.getElementsByTagName('tbody')[0];
+                        const row = tbody.insertRow();
                         row.innerHTML = `
                             <td>${service.name}</td>
                             <td><span class="badge bg-success">Active</span></td>
@@ -213,29 +215,94 @@ def get_ai_service_main_ui():
                     }
 
                     async function updateStats() {
-                        const response = await fetch(`${API_BASE}/api/services`);
-                        const services = await response.json();
+                        try {
+                            const response = await fetch(`${API_BASE}/api/services`);
+                            const services = await response.json();
 
-                        document.getElementById('services-count').innerText = services.length;
-                        // Update other stats...
+                            const countElem = document.getElementById('services-count');
+                            if (countElem) {
+                                countElem.innerText = services.length;
+                            }
+                            // Update other stats...
+                        } catch (error) {
+                            console.error('Error updating stats:', error);
+                        }
                     }
 
-                    // Initialize on load
-                    document.addEventListener('DOMContentLoaded', () => {
-                        document.getElementById('service-form').onsubmit = createService;
+                    function viewCode(serviceName) {
+                        // Navigate to the code viewer endpoint
+                        window.location.href = `/code/${serviceName}`;
+                    }
+
+                    function testService(serviceName) {
+                        // Navigate to test endpoint
+                        window.location.href = `/ai/${serviceName}`;
+                    }
+
+                    async function loadActiveServices() {
+                        try {
+                            console.log('Loading services...');
+                            const response = await fetch(`${API_BASE}/api/services`);
+                            const services = await response.json();
+                            console.log('Loaded services:', services);
+
+                            const table = document.getElementById('services-table');
+                            if (!table) {
+                                console.error('Table not found!');
+                                return;
+                            }
+
+                            services.forEach(service => {
+                                addServiceToTable(service);
+                            });
+                        } catch (error) {
+                            console.error('Error loading services:', error);
+                        }
+                    }
+
+                    // Initialize when ready
+                    let servicesLoaded = false;
+
+                    function initializeApp() {
+                        if (servicesLoaded) return;
+                        servicesLoaded = true;
+
+                        console.log('Initializing app...');
+                        const form = document.getElementById('service-form');
+                        if (form) {
+                            form.onsubmit = createService;
+                        }
                         updateStats();
                         loadActiveServices();
                         connectWebSocket();
-                    });
+                    }
+
+                    // Try multiple initialization approaches
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', initializeApp);
+                    } else {
+                        // DOM is already ready
+                        initializeApp();
+                    }
+
+                    // Fallback
+                    setTimeout(initializeApp, 500);
 
                     function connectWebSocket() {
-                        const ws = new WebSocket('ws://localhost:8003/ws');
-                        ws.onmessage = (event) => {
-                            const data = JSON.parse(event.data);
-                            if (data.type === 'hook') {
-                                updateHooksList(data);
-                            }
-                        };
+                        try {
+                            const ws = new WebSocket('ws://localhost:8003/ws');
+                            ws.onmessage = (event) => {
+                                const data = JSON.parse(event.data);
+                                if (data.type === 'hook') {
+                                    // updateHooksList(data);  // Comment out for now
+                                }
+                            };
+                            ws.onerror = (error) => {
+                                console.error('WebSocket error:', error);
+                            };
+                        } catch (error) {
+                            console.error('Error connecting WebSocket:', error);
+                        }
                     }
                 '''
             }

@@ -20,6 +20,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 import duckdb
+
+from dbbasic_crud_engine_presentation import get_crud_dashboard, get_template_marketplace
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, UploadFile, File, Header
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -444,62 +446,10 @@ class CRUDEngine:
 
         @self.app.get("/")
         async def dashboard():
-            """Main dashboard showing all resources"""
-            resources_html = []
-            for resource_name, resource in self.resources.items():
-                record_count = len(resource.db.execute(f"SELECT COUNT(*) FROM {resource_name}").fetchall())
-                resources_html.append(f"""
-                <div class="resource-card">
-                    <h3>{resource_name.title()}</h3>
-                    <p>{record_count} records</p>
-                    <a href="/{resource_name}" class="resource-link">Manage →</a>
-                </div>
-                """)
-
-            return HTMLResponse(f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>DBBasic CRUD Dashboard</title>
-                <style>
-                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }}
-                    .header {{ background: white; border-bottom: 1px solid #e0e0e0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }}
-                    .logo {{ font-size: 24px; font-weight: bold; color: #333; }}
-                    .nav {{ display: flex; gap: 2rem; align-items: center; }}
-                    .nav a {{ color: #666; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; transition: all 0.3s; font-size: 14px; border: 1px solid transparent; }}
-                    .nav a:hover {{ background: #f0f0f0; border-color: #ddd; }}
-                    .nav a.active {{ background: #007bff; color: white; }}
-                    .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
-                    .title {{ font-size: 32px; font-weight: bold; color: #333; margin-bottom: 30px; text-align: center; }}
-                    .resources {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }}
-                    .resource-card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                    .resource-card h3 {{ margin: 0 0 10px 0; color: #333; }}
-                    .resource-card p {{ color: #666; margin: 0 0 15px 0; }}
-                    .resource-link {{ background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }}
-                    .resource-link:hover {{ background: #0056b3; }}
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="logo">DBBasic</div>
-                    <nav class="nav">
-                        <a href="http://localhost:8004">Monitor</a>
-                        <a href="http://localhost:8005" class="active">Data</a>
-                        <a href="http://localhost:8003">AI Services</a>
-                        <a href="http://localhost:8006">Event Store</a>
-                        <a href="http://localhost:8000/static/mockups.html">Templates</a>
-                    </nav>
-                    <div style="color: #666; font-size: 14px;">402M rows/sec</div>
-                </div>
-                <div class="container">
-                    <h1 class="title">CRUD Engine</h1>
-                    <div class="resources">
-                        {''.join(resources_html)}
-                    </div>
-                </div>
-            </body>
-            </html>
-            """)
+            """Serve CRUD Engine dashboard using presentation layer"""
+            ui_data = get_crud_dashboard()
+            html_content = PresentationLayer.render(ui_data, 'bootstrap')
+            return HTMLResponse(content=html_content)
 
         @self.app.get("/templates")
         async def templates_marketplace():

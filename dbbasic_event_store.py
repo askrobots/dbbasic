@@ -14,6 +14,8 @@ from typing import Dict, List, Optional, Any, Callable
 from pathlib import Path
 import duckdb
 import asyncio
+
+from dbbasic_event_store_presentation import get_event_store_dashboard
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

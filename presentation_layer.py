@@ -50,6 +50,13 @@ class UIRenderer(ABC):
         if isinstance(data, dict):
             component_type = data.get('type', '')
 
+            # Handle script components specially - collect them but don't render inline
+            if component_type == 'script':
+                if hasattr(self, 'scripts'):
+                    content = data.get('content', '')
+                    self.scripts.append(f'<script>{content}</script>')
+                return ''  # Don't render inline
+
             # Route to specific renderer based on type
             if component_type == 'page':
                 return self.render_page(data)
@@ -90,9 +97,16 @@ class UIRenderer(ABC):
 class BootstrapRenderer(UIRenderer):
     """Render to Bootstrap 5.3"""
 
+    def __init__(self):
+        self.scripts = []  # Collect scripts during rendering
+
     def render_page(self, data: Dict) -> str:
         title = data.get('title', 'DBBasic')
+        self.scripts = []  # Reset scripts for this page
         components = self.render(data.get('components', []))
+
+        # Collect all scripts
+        scripts_html = '\n'.join(self.scripts)
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -107,6 +121,7 @@ class BootstrapRenderer(UIRenderer):
 <body>
     {components}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {scripts_html}
     {self._get_scripts()}
 </body>
 </html>"""
@@ -143,7 +158,15 @@ class BootstrapRenderer(UIRenderer):
                 actions.append(f'<button class="btn btn-{variant} btn-sm" onclick="{action}Template(\'{title}\')">{action.title()}</button>')
 
         # If body is provided, use it; otherwise use description
-        content = body if body else description
+        if isinstance(body, dict):
+            # Body is a nested component - render it
+            content = self.render(body)
+        elif body:
+            content = f'<p class="card-text">{body}</p>'
+        elif description:
+            content = f'<p class="card-text">{description}</p>'
+        else:
+            content = ''
 
         return f"""
         <div class="card h-100">
@@ -152,7 +175,7 @@ class BootstrapRenderer(UIRenderer):
                     <h5 class="card-title">{title}</h5>
                     {f'<span class="badge bg-primary">{category}</span>' if category else ''}
                 </div>
-                <p class="card-text">{content}</p>
+                {content}
             </div>
             {f'<div class="card-footer bg-transparent"><div class="d-grid gap-2 d-flex justify-content-end">{" ".join(actions)}</div></div>' if actions else ''}
         </div>"""
