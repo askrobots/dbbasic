@@ -32,19 +32,15 @@ These interfaces are currently available as interactive prototypes at `http://lo
 ![Main Dashboard](screenshots/main_dashboard.png)
 *Prototype preview - implementation pending*
 
-#### Query Builder
-![Query Builder](screenshots/prototype_query_builder.png)
+#### Dashboard
+![Dashboard](screenshots/prototype_dashboard.png)
 *Prototype preview - implementation pending*
 
-#### Schema Designer
-![Schema Designer](screenshots/prototype_schema_designer.png)
+#### Config Editor
+![Config Editor](screenshots/prototype_config_editor.png)
 *Prototype preview - implementation pending*
 
-#### Api Generator
-![Api Generator](screenshots/prototype_api_generator.png)
-*Prototype preview - implementation pending*
-
-#### Workflow Builder
-![Workflow Builder](screenshots/prototype_workflow_builder.png)
+#### Ai Services
+![Ai Services](screenshots/prototype_ai_services.png)
 *Prototype preview - implementation pending*
 

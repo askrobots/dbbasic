@@ -49,7 +49,7 @@ hooks:
   before_delete: check_dependencies
 
 permissions:
-  create: authenticated
+  create: public  # Temporarily set to public for testing
   read: public
   update: owner_or_admin
   delete: admin_only

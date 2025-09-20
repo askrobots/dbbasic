@@ -78,17 +78,19 @@ def main():
              "test_runner", "implemented", "#test-list", 2),
 
             # PROTOTYPE INTERFACES (from mockups)
-            ("http://localhost:8000/static/mockups.html#query-builder",
-             "prototype_query_builder", "prototype", "#query-builder", 2),
+            # Main mockups page (dashboard overview)
+            ("http://localhost:8000/static/mockups.html",
+             "main_dashboard", "prototype", ".container", 2),
 
-            ("http://localhost:8000/static/mockups.html#schema-designer",
-             "prototype_schema_designer", "prototype", "#schema-designer", 2),
+            # Available prototype pages
+            ("http://localhost:8000/static/mockup_dashboard.html",
+             "prototype_dashboard", "prototype", "body", 2),
 
-            ("http://localhost:8000/static/mockups.html#api-generator",
-             "prototype_api_generator", "prototype", "#api-generator", 2),
+            ("http://localhost:8000/static/mockup_config.html",
+             "prototype_config_editor", "prototype", "body", 2),
 
-            ("http://localhost:8000/static/mockups.html#workflow-builder",
-             "prototype_workflow_builder", "prototype", "#workflow-builder", 2),
+            ("http://localhost:8000/static/mockup_ai_services.html",
+             "prototype_ai_services", "prototype", "body", 2),
         ]
 
         # Capture each interface
