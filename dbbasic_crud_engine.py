@@ -265,6 +265,16 @@ class CRUDResource:
                 ws.onopen = function() {{
                     ws.send(JSON.stringify({{ type: 'request_data' }}));
                 }};
+
+                // Also fetch data via HTTP as fallback
+                fetch('/api/{self.resource_name}')
+                    .then(response => response.json())
+                    .then(data => {{
+                        if (data.records && data.records.length > 0) {{
+                            updateTable(data.records);
+                        }}
+                    }})
+                    .catch(err => console.error('Error fetching initial data:', err));
             </script>
         </body>
         </html>
