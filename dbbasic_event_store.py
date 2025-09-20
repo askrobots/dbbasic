@@ -83,11 +83,7 @@ class EventStore:
                 event_version INTEGER NOT NULL,
                 event_data JSON NOT NULL,
                 event_metadata JSON,
-                event_timestamp TIMESTAMP NOT NULL,
-
-                INDEX idx_aggregate (aggregate_id, event_version),
-                INDEX idx_type (aggregate_type, event_type),
-                INDEX idx_timestamp (event_timestamp)
+                event_timestamp TIMESTAMP NOT NULL
             )
         """)
 
@@ -100,10 +96,15 @@ class EventStore:
                 snapshot_data JSON NOT NULL,
                 snapshot_timestamp TIMESTAMP NOT NULL,
 
-                PRIMARY KEY (aggregate_id, snapshot_version),
-                INDEX idx_aggregate_snapshot (aggregate_id, snapshot_version DESC)
+                PRIMARY KEY (aggregate_id, snapshot_version)
             )
         """)
+
+        # Create indexes separately for DuckDB
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_aggregate ON events (aggregate_id, event_version)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_type ON events (aggregate_type, event_type)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON events (event_timestamp)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_aggregate_snapshot ON snapshots (aggregate_id, snapshot_version DESC)")
 
         # Projections table - materialized views
         self.conn.execute("""
